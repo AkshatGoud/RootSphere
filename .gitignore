@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.env
+venv/
+env/
+.DS_Store
+postgres_data/
+dist/
+build/
+*.egg-info/
+.idea/
+.vscode/
+
+# Ignore local db data
+backend/db_data/

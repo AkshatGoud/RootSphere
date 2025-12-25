@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FieldSnapshot v1",
+  "type": "object",
+  "required": [
+    "field_id",
+    "farmer_id",
+    "crop",
+    "growth_stage",
+    "location",
+    "snapshot_ts",
+    "sensor_readings",
+    "weather",
+    "images"
+  ],
+  "properties": {
+    "field_id": { "type": "string" },
+    "farmer_id": { "type": "string" },
+    "crop": { "type": "string" },
+    "growth_stage": { "type": "string" },
+    "location": {
+      "type": "object",
+      "required": ["lat", "lon"],
+      "properties": {
+        "lat": { "type": "number" },
+        "lon": { "type": "number" }
+      }
+    },
+    "snapshot_ts": { "type": "string", "format": "date-time" },
+    "sensor_readings": {
+      "type": ["object", "null"],
+      "required": ["ts", "moisture", "ph", "n", "p", "k"],
+      "properties": {
+        "ts": { "type": "string", "format": "date-time" },
+        "moisture": { "type": "number" },
+        "ph": { "type": "number" },
+        "n": { "type": "number" },
+        "p": { "type": "number" },
+        "k": { "type": "number" }
+      }
+    },
+    "weather": {
+      "type": ["object", "null"],
+      "required": ["ts", "temp_c", "humidity_pct", "rainfall_mm_24h", "forecast_72h"],
+      "properties": {
+        "ts": { "type": "string", "format": "date-time" },
+        "temp_c": { "type": "number" },
+        "humidity_pct": { "type": "number" },
+        "rainfall_mm_24h": { "type": "number" },
+        "forecast_72h": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ts", "temp_c", "humidity_pct", "rainfall_mm"],
+            "properties": {
+              "ts": { "type": "string", "format": "date-time" },
+              "temp_c": { "type": "number" },
+              "humidity_pct": { "type": "number" },
+              "rainfall_mm": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ts", "source", "rgb_url"],
+        "properties": {
+          "ts": { "type": "string", "format": "date-time" },
+          "source": { "type": "string", "enum": ["phone", "drone"] },
+          "rgb_url": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "missing_data": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
