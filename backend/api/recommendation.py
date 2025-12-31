@@ -35,27 +35,30 @@ FERTILIZER_TARGETS = {
     }
 }
 
-def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1) -> schemas.RecommendationResponse:
+from typing import List, Optional
+
+def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_forecast: Optional[List[float]] = None, ai_history: Optional[List[float]] = None) -> schemas.RecommendationResponse:
     why_list = []
-    confidence = 0.6
+    data_completeness = 0.6
+    risk_alert = None
     
-    # 1. Adjust confidence based on data availability
+    # 1. Calculate data completeness score (how much data we have)
     if snapshot.sensor_readings:
-        confidence += 0.1
+        data_completeness += 0.1
     else:
-        confidence -= 0.2
-        why_list.append("Missing sensor readings reduced confidence.")
+        data_completeness -= 0.2
+        why_list.append("⚠️ Missing sensor readings (critical data).")
         
     if snapshot.weather:
-        confidence += 0.1
+        data_completeness += 0.1
     else:
-        why_list.append("Missing weather data (past 24h).")
+        why_list.append("⚠️ Missing weather data (past 24h).")
         
     if snapshot.images:
-        confidence += 0.1
+        data_completeness += 0.1
 
-    # Clamp confidence and round
-    confidence = round(max(0.0, min(1.0, confidence)), 2)
+    # Clamp and round
+    data_completeness = round(max(0.0, min(1.0, data_completeness)), 2)
 
     crop = snapshot.crop.lower()
     stage = snapshot.growth_stage.lower()
@@ -94,67 +97,139 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1) -> schemas.
             why_list.append("No weather forecast available; assuming 0 rain.")
 
         if moisture < thresh:
-            if rainfall_next_24h < 2.0:
+            # --- HYBRID DECISION LOGIC ---
+            # 1. Extract Forecasts
+            ai_rain_24h = 0.0
+            ai_rain_48h = 0.0
+            if lstm_forecast and len(lstm_forecast) >= 2:
+                ai_rain_24h = float(lstm_forecast[0])
+                ai_rain_48h = sum(lstm_forecast[:2])
+
+            # 2. Conflict Detection (Risk Alert)
+            risk_alert = None
+            if abs(rainfall_next_24h - ai_rain_24h) > 5.0:
+                risk_alert = "Uncertain weather: Forecasts disagree significantly."
+            elif rainfall_next_24h < 1.0 and ai_rain_48h > 10.0:
+                 risk_alert = "Warning: Heavy rain predicted soon."
+
+            # 3. Arbitrator Decision
+            # Rule A: If EITHER source predicts significant rain today (>2mm API or >3mm AI), DELAY.
+            # Rationale: Better safe than wasting water if rain comes.
+            will_rain_today = (rainfall_next_24h > 2.0) or (ai_rain_24h > 3.0)
+            
+            # Rule B: If dry today, but AI predicts STORM in 48h (>8mm), DELAY.
+            # Rationale: AI spots approaching systems that API short-term might miss or lag on.
+            storm_approaching = (rainfall_next_24h < 2.0) and (ai_rain_48h > 8.0)
+
+            if will_rain_today:
+                irrigation_action = "DELAY"
+                irr_timing = "after rain"
+                source = "API" if rainfall_next_24h > 2.0 else "AI Model"
+                why_list.append(f"Rain predicted by {source} - save water")
+            
+            elif storm_approaching:
+                irrigation_action = "DELAY"
+                irr_timing = "until after storm"
+                why_list.append("Storm approaching in 48h - wait")
+            
+            else:
+                # Both agree it's dry
                 irrigation_action = "IRRIGATE_NOW"
                 irr_liters = IRRIGATION_LITERS.get(crop, 400.0)
                 irr_timing = "now"
-                why_list.append(f"Moisture {moisture}% < threshold {thresh}% and low next 24h rain forecast ({rainfall_next_24h}mm).")
-            else:
-                irrigation_action = "DELAY"
-                irr_timing = "after rain"
-                why_list.append(f"Moisture low but rain forecast in next 24h ({rainfall_next_24h}mm) -> Delay irrigation.")
+                irr_timing = "now"
+                why_list.append("Weather is clear - safe to irrigate")
+
+            if risk_alert:
+                why_list.append(risk_alert)
         else:
             irrigation_action = "NO_ACTION"
             why_list.append(f"Moisture {moisture}% is sufficient (>= {thresh}%).")
 
-    # 3. Fertilizer Logic
+    # 3. Scientific Fertilizer Logic (Primary: ICAR/TNAU Standards)
     fert_action = "NO_ACTION"
     n_rec = 0.0
     p_rec = 0.0
     k_rec = 0.0
     fert_timing = "N/A"
+    ai_analysis = "ML Model Unavailable"
 
     if snapshot.sensor_readings:
-        sr = snapshot.sensor_readings
-        low = False
-        if sr.n < NUTRIENT_THRESHOLDS_LOW["n"]: low = True
-        if sr.p < NUTRIENT_THRESHOLDS_LOW["p"]: low = True
-        if sr.k < NUTRIENT_THRESHOLDS_LOW["k"]: low = True
+        from .crop_nutrient_standards import check_nutrient_adequacy
+        from .ml.model import classifier
         
-        if low:
+        sr = snapshot.sensor_readings
+        
+        # Step 1: Check against scientific thresholds (PRIMARY)
+        adequacy = check_nutrient_adequacy(
+            crop=crop,
+            growth_stage=stage,
+            n=sr.n,
+            p=sr.p,
+            k=sr.k,
+            ph=sr.ph,
+            moisture=sr.moisture
+        )
+        
+        # Step 2: Get ML prediction (SECONDARY - for confidence/validation)
+        ai_analysis = classifier.predict(
+            n=sr.n,
+            p=sr.p,
+            k=sr.k,
+            ph=sr.ph,
+            moisture=sr.moisture,
+            crop=crop.capitalize()
+        )
+        
+        # Step 3: Make decision based on scientific standards
+        has_deficiency = len(adequacy["deficiencies"]) > 0
+        
+        if has_deficiency:
             fert_action = "APPLY"
             fert_timing = "next suitable day"
-            why_list.append("Detected nutrient deficiency (N, P, or K below threshold).")
             
-            # Lookup targets
+            # Explain each deficiency scientifically
+            for deficiency_msg in adequacy["deficiencies"]:
+                # Only add nutrient deficiencies to fertilizer recommendations
+                # Moisture is handled by irrigation
+                if "Nitrogen" in deficiency_msg or "Phosphorus" in deficiency_msg or "Potassium" in deficiency_msg or "pH" in deficiency_msg:
+                    why_list.append(deficiency_msg)
+            
+            # Add source citation (moved to end for details)
+            # Add source citation
+            req = adequacy["requirements"]
+            sources_str = "; ".join(req["sources"][:1])
+            why_list.append(f"As per: {sources_str}")
+            
+            # ML confidence check
+            ml_agrees = False
+            if "Low Nitrogen" in ai_analysis and not adequacy["n_adequate"]:
+                ml_agrees = True
+            if "Low Phosphorus" in ai_analysis and not adequacy["p_adequate"]:
+                ml_agrees = True
+            if "Low Potassium" in ai_analysis and not adequacy["k_adequate"]:
+                ml_agrees = True
+            
+            if ml_agrees:
+                why_list.append(f"Digital check: Confirmed ({ai_analysis})")
+            else:
+                why_list.append(f"Digital check: Suggests '{ai_analysis}' - consider retesting")
+            
+            # Calculate fertilizer recommendations
             targets = FERTILIZER_TARGETS.get(crop, FERTILIZER_TARGETS["default"]).get(stage, FERTILIZER_TARGETS["default"]["default"])
             n_rec = targets["n"]
             p_rec = targets["p"]
             k_rec = targets["k"]
         else:
-            why_list.append("Nutrient levels are adequate.")
+            why_list.append(f"Soil is healthy for {crop.capitalize()} ({stage} stage)")
+            why_list.append(f"Digital check: {ai_analysis}")
             
-        # pH check
-        if sr.ph < 5.5:
-            why_list.append(f"pH {sr.ph} is low (acidic). Consider lime application.")
-        elif sr.ph > 7.8:
-            why_list.append(f"pH {sr.ph} is high (alkaline). Consider sulfur/gypsum.")
+            # Edge case: ML disagrees with scientific standards
+            if "Low" in ai_analysis and not has_deficiency:
+                why_list.append("Note: Digital check found potential issue - consider retesting")
+                
     else:
         why_list.append("Cannot determine fertilizer needs without soil test.")
-
-    # ML Analysis
-    ai_analysis = "ML Model Unavailable"
-    if snapshot.sensor_readings:
-        from .ml.model import classifier
-        ai_analysis = classifier.predict(
-            n=snapshot.sensor_readings.n,
-            p=snapshot.sensor_readings.p,
-            k=snapshot.sensor_readings.k,
-            ph=snapshot.sensor_readings.ph,
-            moisture=snapshot.sensor_readings.moisture,
-            crop=crop.capitalize()
-        )
-        why_list.append(f"AI Soil Analysis: {ai_analysis}")
 
     # Construct response
     return schemas.RecommendationResponse(
@@ -172,8 +247,11 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1) -> schemas.
             k_kg_acre=k_rec,
             timing=fert_timing
         ),
-        confidence=confidence,
+        data_completeness=data_completeness,
         why=why_list,
-        ai_analysis=ai_analysis, # New Field
+        ai_analysis=ai_analysis, 
+        ai_forecast=lstm_forecast, # Pass the raw forecast data [day1, day2, day3]
+        ai_history=ai_history, # Pass historical rainfall (last 7 days)
+        risk_alert=risk_alert, # Pass hybrid logic alert
         snapshot_used=snapshot
     )

@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List
 from datetime import datetime, timedelta
+from .services.weather_ml import weather_ml_service
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("api")
 
 app = FastAPI(title="RootSphere AI API")
+
+# Create database tables on startup
+models.Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,
@@ -88,8 +92,10 @@ def create_farmer(farmer: schemas.FarmerCreate, db: Session = Depends(get_db)):
 @app.post("/login", response_model=schemas.Token)
 def login(form_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     farmer = crud.get_farmer_by_email(db, form_data.email)
-    if not farmer or not auth_service.verify_password(form_data.password, farmer.password_hash):
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    if not farmer:
+        raise HTTPException(status_code=404, detail="No account found with this email")
+    if not auth_service.verify_password(form_data.password, farmer.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect password")
     
     access_token = auth_service.create_access_token(data={"sub": farmer.id})
     return {
@@ -103,8 +109,7 @@ def login(form_data: schemas.LoginRequest, db: Session = Depends(get_db)):
 def forgot_password(req: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
     farmer = crud.get_farmer_by_email(db, req.email)
     if not farmer:
-        # Don't reveal user existence? For this project, it's fine.
-        return {"message": "If email exists, code sent."}
+        raise HTTPException(status_code=404, detail="No account found with this email")
     
     # Generate 6 digit code
     import random
@@ -116,7 +121,7 @@ def forgot_password(req: schemas.ForgotPasswordRequest, db: Session = Depends(ge
     db.commit()
     
     # Log to console (Simulate Email)
-    print(f"\n[EMAIL SIMULATION] Password Reset Code for {req.email}: {code}\n")
+    print(f"\n[EMAIL SIMULATION] Password Reset Code for {req.email}: {code}\n", flush=True)
     logger.info(f"Password reset code for {req.email}: {code}")
     
     return {"message": "Reset code sent to email (check server logs/console)."}
@@ -150,7 +155,7 @@ def read_farmer(farmer_id: str, db: Session = Depends(get_db)):
     return db_farmer
 
 @app.post("/fields", response_model=schemas.FieldResponse)
-def create_field(field: schemas.FieldCreate, db: Session = Depends(get_db)):
+def create_field(field: schemas.FieldCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # Check if farmer exists
     if not crud.get_farmer(db, field.farmer_id):
         raise HTTPException(status_code=404, detail="Farmer not found")
@@ -176,6 +181,9 @@ def create_field(field: schemas.FieldCreate, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Weather fetch error: {e}")
         # Non-blocking, continue
+        
+    # Trigger Dynamic ML Training
+    background_tasks.add_task(weather_ml_service.train_model_for_field, db_field.id, db_field.lat, db_field.lon)
         
     return db_field
 
@@ -303,7 +311,29 @@ def get_recommendation(field_id: str, db: Session = Depends(get_db)):
     # Reuse snapshot logic
     snapshot = get_field_snapshot(field_id, db)
     
-    rec_response = recommendation.generate_recommendation_logic(snapshot)
+    # ML Rainfall Prediction (LSTM)
+    lstm_forecast = None
+    ai_history = None
+    try:
+        # Fetch last 7 days weather
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=7)
+        history = crud.get_weather_readings(db, field_id, start_date, end_date, limit=100)
+        # Convert to dict list for service
+        history_dicts = [{"temp_max": r.temp_max if hasattr(r, 'temp_max') else r.temp_c, 
+                          "temp_min": r.temp_min if hasattr(r, 'temp_min') else r.temp_c - 5, 
+                          "rain": r.rainfall_mm, 
+                          "humidity": r.humidity_pct} for r in history]
+        
+        # Extract historical rainfall for visualization (last 7 days)
+        ai_history = [d["rain"] for d in history_dicts[-7:]] if len(history_dicts) >= 7 else None
+                          
+        lstm_forecast = weather_ml_service.predict_next_3_days(field_id, history_dicts)
+    except Exception as e:
+        logger.error(f"LSTM Prediction failed: {e}")
+        lstm_forecast = None
+    
+    rec_response = recommendation.generate_recommendation_logic(snapshot, lstm_forecast, ai_history)
     
     # Store recommendation
     db_rec = crud.create_recommendation(db, {
@@ -313,7 +343,7 @@ def get_recommendation(field_id: str, db: Session = Depends(get_db)):
             "irrigation": rec_response.irrigation.model_dump(),
             "fertilizer": rec_response.fertilizer.model_dump()
         },
-        "confidence": rec_response.confidence,
+        "data_completeness": rec_response.data_completeness,
         "why_json": rec_response.why
     })
     

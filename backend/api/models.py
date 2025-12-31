@@ -82,7 +82,7 @@ class Recommendation(Base):
     field_id = Column(String, ForeignKey("fields.id"), index=True)
     ts = Column(DateTime, index=True)
     action_json = Column(JSON)
-    confidence = Column(Float)
+    data_completeness = Column(Float)
     why_json = Column(JSON)
 
     field = relationship("Field", back_populates="recommendations")
