@@ -1,70 +1,89 @@
-# Smart Multi-Modal Soil & Crop Health Prediction System
+# RootSphere AI: Smart Multi-Modal Soil & Crop Health Prediction System
 
-## Requirements
-- Docker & Docker Compose
-- Python 3.11+ (for local development)
+RootSphere AI is an advanced precision agriculture platform that synthesizes IoT soil data, hyper-local weather forecasts, and computer vision to provide actionable farming insights.
 
-## Quick Start
+## 🚀 Features
+- **Real-time Monitoring**: Live dashboards for Soil NPK, pH, Moisture, and Weather.
+- **Hybrid Intelligence**: Combines rule-based agronomy with LSTM weather models for crop recommendations.
+- **Disease & Pest Detection**: Computer vision analysis of crop images.
+- **Field Management**: Geo-tagged profiles for multiple land plots.
+- **Sustainability**: Aligned with UN SDG 2 (Zero Hunger) and SDG 12 (Responsible Consumption).
 
-1. **Start the System**
+## 🛠️ Tech Stack
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Radix UI, Recharts.
+- **Backend**: FastAPI (Python), SQLAlchemy, Pydantic, Alembic.
+- **Database**: PostgreSQL 15.
+- **ML/AI**: PyTorch (LSTM), Scikit-Learn, Open-Meteo API.
+- **Infrastructure**: Docker, Docker Compose.
+- **IoT Support**: Compatible with ESP32 / Nano Banana Pro.
+
+## 📋 Prerequisites
+- **Docker** & **Docker Compose** installed on your machine.
+- **Python 3.11+** (Only if running locally without Docker).
+
+## ⚡ Quick Start (Docker)
+
+1. **Clone the Repository**
+   ```bash
+   git clone <repository-url>
+   cd "Major project"
+   ```
+
+2. **Start the System**
+   This command builds the backend and frontend images and starts the containers.
    ```bash
    docker compose up --build -d
    ```
 
-2. **Run Migrations**
+3. **Initialize Database**
+   Apply migrations to set up the database schema.
    ```bash
    docker compose exec api alembic upgrade head
    ```
-   *Note: If running locally without docker exec, ensure `DATABASE_URL` is set.*
 
-3. **Run Simulator**
+4. **Access the Application**
+   - **Frontend Dashboard**: [http://localhost:8080](http://localhost:8080)
+   - **API Documentation (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+   - **Database Health**: [http://localhost:8000/health](http://localhost:8000/health)
+
+5. **(Optional) Run Data Simulator**
+   Generate dummy data for fields and sensors to visualize the dashboard.
    ```bash
    docker compose exec api python tools/simulate_field.py
    ```
 
-4. **Run Tests**
-   ```bash
-   docker compose exec api pytest -q
-   ```
+## 🧪 Testing
+Run the backend test suite inside the container:
+```bash
+docker compose exec api pytest -v
+```
 
-## API Documentation
-Once running, visit: http://localhost:8000/docs
+## 🔌 Core API Endpoints
 
+### **Authentication**
+- `POST /login`: Authenticate farmer.
+- `POST /farmers`: Register new account.
 
-### Phase 3: Enhancements
-- Data History
-- Feedback Loop
-- Observability (Request ID, JSON logs)
+### **Field & Data**
+- `GET /field/{field_id}/latest`: Get unified dashboard snapshot.
+- `POST /ingest/sensor`: Push IoT sensor data.
+- `POST /ingest/weather`: Push/Cache weather data.
 
-## API Endpoints
+### **Intelligence**
+- `POST /recommend/{field_id}`: Trigger crop recommendation engine.
+- `POST /ingest/image`: Upload image for disease analysis.
 
-### Data
-- `POST /farmers`: Create farmer
-- `POST /fields`: Create field
-- `POST /ingest/sensor`: Submit soil sensor readings
-- `POST /ingest/weather`: Submit weather data
-- `POST /ingest/image`: Submit image metadata
+## 📂 Project Structure
+```
+├── backend/            # FastAPI Application
+│   ├── api/            # Routes, Models, Services
+│   ├── migrations/     # Database versions (Alembic)
+│   └── tools/          # Simulation scripts
+├── frontend/           # React Application
+│   └── nomad-fields/   # Vite Project Source
+├── docker-compose.yml  # Orchestration Config
+└── README.md           # This Documentation
+```
 
-### Core
-- `GET /field/{field_id}/latest`: Get canonical field snapshot
-- `POST /recommend/{field_id}`: Generate recommendation
-
-### History & Feedback
-- `GET /recommendations?field_id=...&limit=50`: Browse past recommendations
-- `GET /sensor_readings?field_id=...`: Browse sensor history
-- `POST /feedback`: Submit feedback on recommendation
-    ```bash
-    curl -X POST "http://localhost:8000/feedback" \
-         -H "Content-Type: application/json" \
-         -d '{"field_id": "...", "recommendation_id": "...", "followed": true, "outcome": "Success"}'
-    ```
-
-### Ops
-- `GET /health`
-- `GET /ready`
-
-## Development
-- `api/`: Application code
-- `contracts/`: Data schemas
-- `migrations/`: DB migrations
-- `tools/`: Utilities (simulator)
+## 🌍 Sustainable Development Goals (SDG)
+This project primarily supports **SDG 2: Zero Hunger** (Target 2.4 - Sustainable Food Production) by optimizing resource usage and reducing crop loss through early warnings.
