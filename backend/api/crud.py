@@ -159,6 +159,15 @@ def get_latest_images(db: Session, field_id: str, limit: int = 3):
              .limit(limit)\
              .all()
 
+def delete_image(db: Session, image_id: str):
+    """Delete an image by ID"""
+    db_image = db.query(models.Image).filter(models.Image.id == image_id).first()
+    if db_image:
+        db.delete(db_image)
+        db.commit()
+        return True
+    return False
+
 def get_field(db: Session, field_id: str):
     return db.query(models.Field).filter(models.Field.id == field_id).first()
 

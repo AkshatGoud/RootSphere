@@ -227,10 +227,17 @@ def ingest_weather(reading: schemas.WeatherReadingCreate, db: Session = Depends(
     crud.create_weather_reading(db, reading)
     return reading
 
-@app.post("/ingest/image", response_model=schemas.ImageCreate)
+@app.post("/ingest/image", response_model=schemas.ImageResponse)
 def ingest_image(image: schemas.ImageCreate, db: Session = Depends(get_db)):
-    crud.create_image(db, image)
-    return image
+    db_image = crud.create_image(db, image)
+    return db_image
+
+@app.delete("/images/{image_id}")
+def delete_image(image_id: str, db: Session = Depends(get_db)):
+    success = crud.delete_image(db, image_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return {"message": "Image deleted successfully"}
 
 @app.get("/field/{field_id}/latest", response_model=schemas.FieldSnapshotV1)
 def get_field_snapshot(field_id: str, db: Session = Depends(get_db)):
@@ -287,6 +294,7 @@ def get_field_snapshot(field_id: str, db: Session = Depends(get_db)):
 
     image_list = [
         schemas.ImageSummary(
+            id=img.id,
             ts=img.ts, source=img.source, rgb_url=img.rgb_url, notes=img.notes
         ) for img in images
     ]

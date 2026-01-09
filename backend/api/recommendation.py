@@ -63,6 +63,38 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
     crop = snapshot.crop.lower()
     stage = snapshot.growth_stage.lower()
 
+    # --- IMAGE ANALYSIS (New Hybrid Input) ---
+    image_issue = None
+    image_treatment = None
+    
+    image_issue = None
+    image_treatment = None
+    
+    if snapshot.images:
+        from .ml.image_model import analyze_crop_image
+        
+        # Analyze the most recent image
+        latest_img = snapshot.images[0]
+        
+        # Pass the RGB URL, Notes, AND Crop Name for specific diagnosis
+        img_result = analyze_crop_image(
+            image_url=latest_img.rgb_url, 
+            notes=latest_img.notes,
+            crop_name=snapshot.crop
+        )
+        
+        if img_result["detected_issue"]:
+            image_issue = img_result["detected_issue"]
+            image_treatment = img_result.get("treatment")
+            
+            why_list.append(f"📸 Visual AI detected: {image_issue}")
+            
+            # If severity is 'high', it might flag a Risk Alert
+            if img_result["severity"] == "high" or img_result["severity"] == "critical":
+                risk_alert = f"Visual Alert: {image_issue} detected. Action required."
+        else:
+            why_list.append("📸 Visual AI check: Plant looks healthy")
+
     # 2. Irrigation Logic
     irrigation_action = "UNKNOWN"
     irr_liters = 0.0
@@ -231,6 +263,14 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
     else:
         why_list.append("Cannot determine fertilizer needs without soil test.")
 
+    # Append Image Treatment if exists (Overrides or adds to fertilizer/action advice)
+    if image_treatment:
+        why_list.append(f"👉 Recommendation: {image_treatment}")
+        # If it's a nutrient deficiency, we could theoretically update fert_action, 
+        # but for safety we kept them separate unless scientific data backs it up.
+        # This hybrid approach trusts Science (Sensors) > Vision (Images) for nutrients,
+        # but trusts Vision for Diseases.
+
     # Construct response
     return schemas.RecommendationResponse(
         field_id=snapshot.field_id,
@@ -249,7 +289,7 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
         ),
         data_completeness=data_completeness,
         why=why_list,
-        ai_analysis=ai_analysis, 
+        ai_analysis=image_issue if image_issue else ai_analysis, # Prioritize image issue in summary if found 
         ai_forecast=lstm_forecast, # Pass the raw forecast data [day1, day2, day3]
         ai_history=ai_history, # Pass historical rainfall (last 7 days)
         risk_alert=risk_alert, # Pass hybrid logic alert

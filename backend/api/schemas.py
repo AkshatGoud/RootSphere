@@ -88,6 +88,11 @@ class ImageCreate(BaseModel):
     rgb_url: str
     notes: Optional[str] = None
 
+class ImageResponse(ImageCreate):
+    id: str
+    class Config:
+        from_attributes = True
+
 # --- Snapshot Schemas ---
 
 class Location(BaseModel):
@@ -108,6 +113,7 @@ class WeatherSummary(BaseModel):
     forecast_72h: List[WeatherPoint]
 
 class ImageSummary(BaseModel):
+    id: str
     ts: datetime
     source: str
     rgb_url: str
