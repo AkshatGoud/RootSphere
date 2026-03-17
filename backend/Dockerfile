@@ -8,7 +8,10 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python dependencies from pyproject.toml
+# Install CPU-only PyTorch first (saves ~3.5GB vs full CUDA version)
+RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining dependencies from pyproject.toml
 COPY pyproject.toml .
 RUN pip install .[dev]
 
