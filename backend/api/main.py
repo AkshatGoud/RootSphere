@@ -107,10 +107,10 @@ def forgot_password(req: schemas.ForgotPasswordRequest, db: Session = Depends(ge
     farmer.reset_expires = datetime.utcnow() + timedelta(minutes=15)
     db.commit()
 
-    print(f"\n[EMAIL SIMULATION] Password Reset Code for {req.email}: {code}\n", flush=True)
-    logger.info(f"Password reset code for {req.email}: {code}")
+    from .services.email import send_reset_code
+    send_reset_code(req.email, code)
 
-    return {"message": "Reset code sent to email (check server logs/console)."}
+    return {"message": "Reset code sent to your email."}
 
 @app.post("/auth/reset-password")
 def reset_password(req: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
