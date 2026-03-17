@@ -20,8 +20,8 @@ COPY tools/ tools/
 COPY tests/ tests/
 COPY alembic.ini .
 
-# Expose port
+# Expose port (Render uses PORT env var, default 8000 for local)
 EXPOSE 8000
 
-# Command to run the app
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Command to run the app - uses PORT env var if set (for Render), else 8000
+CMD uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}
