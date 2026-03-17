@@ -16,6 +16,11 @@ class FarmerCreate(BaseModel):
     password: str # Now required
     language: Optional[str] = "en"
 
+class FarmerUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    language: Optional[str] = None
+
 class LoginRequest(BaseModel):
     email: str
     password: str

@@ -154,6 +154,13 @@ def read_farmer(farmer_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Farmer not found")
     return db_farmer
 
+@app.put("/farmers/{farmer_id}", response_model=schemas.FarmerResponse)
+def update_farmer(farmer_id: str, farmer_update: schemas.FarmerUpdate, db: Session = Depends(get_db)):
+    db_farmer = crud.update_farmer(db, farmer_id, farmer_update)
+    if db_farmer is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    return db_farmer
+
 @app.post("/fields", response_model=schemas.FieldResponse)
 def create_field(field: schemas.FieldCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # Check if farmer exists

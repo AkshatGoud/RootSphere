@@ -10,6 +10,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+    restart: unless-stopped
 
   db:
     image: postgres:15-alpine
@@ -17,25 +18,30 @@ services:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=smartsoil
+      - POSTGRES_HOST_AUTH_METHOD=trust
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d smartsoil"]
+      test: [ "CMD-SHELL", "pg_isready -U user -d smartsoil" ]
       interval: 5s
       timeout: 5s
       retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
   frontend:
-    build: ./frontend/nomad-fields
+    build: ./frontend/nomad-fields/RootSphere-Frontend
     ports:
       - "8080:8080"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
     volumes:
-      - ./frontend/nomad-fields:/app
+      - ./frontend/nomad-fields/RootSphere-Frontend:/app
       - /app/node_modules
     depends_on:
       - api
+    restart: unless-stopped
 
 volumes:
   postgres_data:

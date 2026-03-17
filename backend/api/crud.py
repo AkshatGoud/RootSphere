@@ -55,6 +55,19 @@ def get_farmer_by_email(db: Session, email: str):
 def get_farmer(db: Session, farmer_id: str):
     return db.query(models.Farmer).filter(models.Farmer.id == farmer_id).first()
 
+def update_farmer(db: Session, farmer_id: str, farmer_update: schemas.FarmerUpdate):
+    db_farmer = get_farmer(db, farmer_id)
+    if not db_farmer:
+        return None
+    
+    update_data = farmer_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_farmer, key, value)
+    
+    db.commit()
+    db.refresh(db_farmer)
+    return db_farmer
+
 def create_field(db: Session, field: schemas.FieldCreate):
     db_field = models.Field(**field.model_dump())
     db.add(db_field)
