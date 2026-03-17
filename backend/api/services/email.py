@@ -1,37 +1,42 @@
-import smtplib
 import os
 import logging
 import threading
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import requests
 
 logger = logging.getLogger(__name__)
 
-SMTP_EMAIL = os.getenv("SMTP_EMAIL")
-SMTP_APP_PASSWORD = os.getenv("SMTP_APP_PASSWORD")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "RootSphere <onboarding@resend.dev>")
 
 
-def _send_email(to_email: str, msg: MIMEMultipart):
+def _send_email(to_email: str, subject: str, html: str):
     try:
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
-            server.starttls()
-            server.login(SMTP_EMAIL, SMTP_APP_PASSWORD)
-            server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
-        logger.info(f"Password reset email sent to {to_email}")
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            json={
+                "from": EMAIL_FROM,
+                "to": [to_email],
+                "subject": subject,
+                "html": html,
+            },
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            logger.info(f"Email sent to {to_email}")
+        else:
+            logger.error(f"Resend API error: {resp.status_code} {resp.text}")
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {e}")
 
 
 def send_reset_code(to_email: str, code: str):
-    if not SMTP_EMAIL or not SMTP_APP_PASSWORD:
-        logger.warning("SMTP not configured — printing code to console instead")
+    if not RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not set — printing code to console instead")
         print(f"\n[EMAIL SIMULATION] Password Reset Code for {to_email}: {code}\n", flush=True)
         return
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"RootSphere — Your Password Reset Code: {code}"
-    msg["From"] = SMTP_EMAIL
-    msg["To"] = to_email
+    subject = f"RootSphere — Your Password Reset Code: {code}"
 
     html = f"""\
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
@@ -50,7 +55,4 @@ def send_reset_code(to_email: str, code: str):
     </div>
     """
 
-    msg.attach(MIMEText(html, "html"))
-
-    # Send in background thread so the API responds immediately
-    threading.Thread(target=_send_email, args=(to_email, msg), daemon=True).start()
+    threading.Thread(target=_send_email, args=(to_email, subject, html), daemon=True).start()
