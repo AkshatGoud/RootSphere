@@ -13,4 +13,5 @@ build/
 
 # Ignore local db data
 backend/db_data/
+backend/dev.db
 Review 1/
