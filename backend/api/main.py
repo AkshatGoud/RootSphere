@@ -269,17 +269,19 @@ async def upload_image_file(
     if file.content_type not in allowed:
         raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed")
 
-    # Save file
+    import base64
+    contents = await file.read()
+
+    # Also save to local uploads dir (for local dev)
     ext = file.filename.rsplit(".", 1)[-1] if "." in (file.filename or "") else "jpg"
     filename = f"{uuid.uuid4().hex}.{ext}"
     filepath = os.path.join(UPLOADS_DIR, filename)
-
-    contents = await file.read()
     with open(filepath, "wb") as f:
         f.write(contents)
 
-    # Build URL
-    rgb_url = f"/uploads/{filename}"
+    # Store as base64 data URL in DB (works on Render without persistent disk)
+    mime = file.content_type or "image/jpeg"
+    rgb_url = f"data:{mime};base64,{base64.b64encode(contents).decode()}"
 
     image_data = schemas.ImageCreate(
         field_id=field_id,
@@ -348,14 +350,10 @@ def analyze_image(
         allowed = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
         if file.content_type not in allowed:
             raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed")
-        import asyncio
-        ext = file.filename.rsplit(".", 1)[-1] if "." in (file.filename or "") else "jpg"
-        filename = f"{uuid.uuid4().hex}.{ext}"
-        filepath = os.path.join(UPLOADS_DIR, filename)
+        import base64
         contents = file.file.read()
-        with open(filepath, "wb") as f:
-            f.write(contents)
-        image_url = f"/uploads/{filename}"
+        mime = file.content_type or "image/jpeg"
+        image_url = f"data:{mime};base64,{base64.b64encode(contents).decode()}"
         crop_name = crop_name or "unknown"
     else:
         raise HTTPException(status_code=400, detail="Provide image_id, field_id, or upload a file")

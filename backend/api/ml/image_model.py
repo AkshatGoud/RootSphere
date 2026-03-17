@@ -139,12 +139,18 @@ def _get_hf_pipeline():
 
 
 def _download_image(image_url: str):
-    """Download image from URL or load from local uploads and return a PIL Image."""
+    """Download image from URL, base64 data URL, or local uploads and return a PIL Image."""
     from PIL import Image
+
+    # Handle base64 data URLs (e.g. data:image/jpeg;base64,...)
+    if image_url.startswith("data:"):
+        import base64
+        # Strip "data:image/jpeg;base64," prefix
+        b64_data = image_url.split(",", 1)[1]
+        return Image.open(BytesIO(base64.b64decode(b64_data))).convert("RGB")
 
     # Handle locally uploaded files
     if image_url.startswith("/uploads/"):
-        import os
         local_path = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", os.path.basename(image_url))
         return Image.open(local_path).convert("RGB")
 
