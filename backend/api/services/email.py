@@ -1,6 +1,7 @@
 import smtplib
 import os
 import logging
+import threading
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -8,6 +9,17 @@ logger = logging.getLogger(__name__)
 
 SMTP_EMAIL = os.getenv("SMTP_EMAIL")
 SMTP_APP_PASSWORD = os.getenv("SMTP_APP_PASSWORD")
+
+
+def _send_email(to_email: str, msg: MIMEMultipart):
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
+            server.starttls()
+            server.login(SMTP_EMAIL, SMTP_APP_PASSWORD)
+            server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
+        logger.info(f"Password reset email sent to {to_email}")
+    except Exception as e:
+        logger.error(f"Failed to send email to {to_email}: {e}")
 
 
 def send_reset_code(to_email: str, code: str):
@@ -40,9 +52,5 @@ def send_reset_code(to_email: str, code: str):
 
     msg.attach(MIMEText(html, "html"))
 
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
-        server.starttls()
-        server.login(SMTP_EMAIL, SMTP_APP_PASSWORD)
-        server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
-
-    logger.info(f"Password reset email sent to {to_email}")
+    # Send in background thread so the API responds immediately
+    threading.Thread(target=_send_email, args=(to_email, msg), daemon=True).start()
