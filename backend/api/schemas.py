@@ -226,9 +226,10 @@ class SensorCreate(SensorBase):
 
 class SensorResponse(SensorBase):
     id: str
+    farmer_id: Optional[str] = None
     created_at: datetime
     current_assignment: Optional["SensorAssignmentResponse"] = None
-    
+
     class Config:
         from_attributes = True
 

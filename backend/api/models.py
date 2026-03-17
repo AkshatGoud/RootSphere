@@ -104,6 +104,7 @@ class Feedback(Base):
 class Sensor(Base):
     __tablename__ = "sensors"
     id = Column(String, primary_key=True, default=generate_uuid)
+    farmer_id = Column(String, ForeignKey("farmers.id"), index=True, nullable=True)
     name = Column(String, index=True)
     type = Column(String) # Soil, Weather, Other
     metrics = Column(String) # JSON or Comma-separated list of metrics
@@ -111,6 +112,7 @@ class Sensor(Base):
     notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    farmer = relationship("Farmer")
     assignments = relationship("SensorAssignment", back_populates="sensor")
 
 class SensorAssignment(Base):

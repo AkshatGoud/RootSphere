@@ -78,6 +78,12 @@ def create_field(db: Session, field: schemas.FieldCreate):
 def get_field(db: Session, field_id: str):
     return db.query(models.Field).filter(models.Field.id == field_id).first()
 
+def get_field_for_farmer(db: Session, field_id: str, farmer_id: str):
+    return db.query(models.Field)\
+             .filter(models.Field.id == field_id)\
+             .filter(models.Field.farmer_id == farmer_id)\
+             .first()
+
 def get_fields_by_farmer(db: Session, farmer_id: str):
     return db.query(models.Field).filter(models.Field.farmer_id == farmer_id).all()
 
@@ -204,18 +210,23 @@ def ensure_farmer_field(db: Session, farmer_id: str, field_id: str):
 
 # --- Sensor Management ---
 
-def create_sensor(db: Session, sensor: schemas.SensorCreate):
-    db_sensor = models.Sensor(**sensor.model_dump())
+def create_sensor(db: Session, sensor: schemas.SensorCreate, farmer_id: str):
+    db_sensor = models.Sensor(**sensor.model_dump(), farmer_id=farmer_id)
     db.add(db_sensor)
     db.commit()
     db.refresh(db_sensor)
     return db_sensor
 
-def get_sensors(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Sensor).offset(skip).limit(limit).all()
+def get_sensors(db: Session, farmer_id: str, skip: int = 0, limit: int = 100):
+    return db.query(models.Sensor)\
+             .filter(models.Sensor.farmer_id == farmer_id)\
+             .offset(skip).limit(limit).all()
 
-def get_sensor(db: Session, sensor_id: str):
-    return db.query(models.Sensor).filter(models.Sensor.id == sensor_id).first()
+def get_sensor(db: Session, sensor_id: str, farmer_id: str = None):
+    query = db.query(models.Sensor).filter(models.Sensor.id == sensor_id)
+    if farmer_id:
+        query = query.filter(models.Sensor.farmer_id == farmer_id)
+    return query.first()
 
 def get_active_assignment(db: Session, sensor_id: str):
     return db.query(models.SensorAssignment)\
