@@ -100,6 +100,26 @@ def update_field(db: Session, field_id: str, field_update: schemas.FieldUpdate):
     db.refresh(db_field)
     return db_field
 
+def delete_field(db: Session, field_id: str, farmer_id: str) -> bool:
+    """Delete a field and all its related data (cascade)."""
+    db_field = db.query(models.Field)\
+                 .filter(models.Field.id == field_id)\
+                 .filter(models.Field.farmer_id == farmer_id)\
+                 .first()
+    if not db_field:
+        return False
+
+    # Delete related data in FK-safe order
+    db.query(models.Feedback).filter(models.Feedback.field_id == field_id).delete()
+    db.query(models.Recommendation).filter(models.Recommendation.field_id == field_id).delete()
+    db.query(models.Image).filter(models.Image.field_id == field_id).delete()
+    db.query(models.WeatherReading).filter(models.WeatherReading.field_id == field_id).delete()
+    db.query(models.SensorReading).filter(models.SensorReading.field_id == field_id).delete()
+    db.query(models.SensorAssignment).filter(models.SensorAssignment.field_id == field_id).delete()
+    db.delete(db_field)
+    db.commit()
+    return True
+
 def create_feedback(db: Session, feedback: schemas.FeedbackCreate):
     db_feedback = models.Feedback(**feedback.model_dump())
     db.add(db_feedback)
@@ -227,6 +247,21 @@ def get_sensor(db: Session, sensor_id: str, farmer_id: str = None):
     if farmer_id:
         query = query.filter(models.Sensor.farmer_id == farmer_id)
     return query.first()
+
+def delete_sensor(db: Session, sensor_id: str, farmer_id: str) -> bool:
+    """Delete a sensor and its assignments/readings."""
+    db_sensor = db.query(models.Sensor)\
+                  .filter(models.Sensor.id == sensor_id)\
+                  .filter(models.Sensor.farmer_id == farmer_id)\
+                  .first()
+    if not db_sensor:
+        return False
+
+    db.query(models.SensorReading).filter(models.SensorReading.sensor_id == sensor_id).delete()
+    db.query(models.SensorAssignment).filter(models.SensorAssignment.sensor_id == sensor_id).delete()
+    db.delete(db_sensor)
+    db.commit()
+    return True
 
 def get_active_assignment(db: Session, sensor_id: str):
     return db.query(models.SensorAssignment)\

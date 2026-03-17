@@ -1,5 +1,7 @@
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List
@@ -11,6 +13,7 @@ import time
 import uuid
 import json
 import logging
+import os
 
 from . import crud, models, schemas, recommendation
 from .services import weather as weather_service
@@ -25,6 +28,11 @@ app = FastAPI(title="RootSphere AI API")
 
 # Create database tables on startup
 models.Base.metadata.create_all(bind=engine)
+
+# Static file serving for uploaded images
+UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
@@ -81,6 +89,23 @@ def create_farmer(farmer: schemas.FarmerCreate, db: Session = Depends(get_db)):
 @app.post("/login", response_model=schemas.Token)
 def login(form_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     farmer = crud.get_farmer_by_email(db, form_data.email)
+    if not farmer:
+        raise HTTPException(status_code=404, detail="No account found with this email")
+    if not auth_service.verify_password(form_data.password, farmer.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+
+    access_token = auth_service.create_access_token(data={"sub": farmer.id})
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "farmer_id": farmer.id,
+        "farmer_name": farmer.name
+    }
+
+@app.post("/login/token", response_model=schemas.Token, include_in_schema=False)
+def login_oauth2(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """OAuth2-compatible login for Swagger UI. Email goes in the 'username' field."""
+    farmer = crud.get_farmer_by_email(db, form_data.username)
     if not farmer:
         raise HTTPException(status_code=404, detail="No account found with this email")
     if not auth_service.verify_password(form_data.password, farmer.password_hash):
@@ -196,6 +221,13 @@ def update_field(field_id: str, field_update: schemas.FieldUpdate, db: Session =
 
     return db_field
 
+@app.delete("/fields/{field_id}")
+def delete_field(field_id: str, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
+    deleted = crud.delete_field(db, field_id, farmer.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Field not found")
+    return {"message": "Field deleted"}
+
 @app.get("/fields", response_model=List[schemas.FieldResponse])
 def list_fields(db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
     return crud.get_fields_by_farmer(db, farmer.id)
@@ -221,6 +253,44 @@ def ingest_image(image: schemas.ImageCreate, db: Session = Depends(get_db), farm
     db_image = crud.create_image(db, image)
     return db_image
 
+@app.post("/upload/image", response_model=schemas.ImageResponse)
+async def upload_image_file(
+    field_id: str = Form(...),
+    notes: str = Form(""),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    farmer: models.Farmer = Depends(get_current_farmer),
+):
+    if not crud.get_field_for_farmer(db, field_id, farmer.id):
+        raise HTTPException(status_code=404, detail="Field not found")
+
+    # Validate file type
+    allowed = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
+    if file.content_type not in allowed:
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed")
+
+    # Save file
+    ext = file.filename.rsplit(".", 1)[-1] if "." in (file.filename or "") else "jpg"
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(UPLOADS_DIR, filename)
+
+    contents = await file.read()
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    # Build URL
+    rgb_url = f"/uploads/{filename}"
+
+    image_data = schemas.ImageCreate(
+        field_id=field_id,
+        ts=datetime.utcnow(),
+        source="phone",
+        rgb_url=rgb_url,
+        notes=notes.strip(),
+    )
+    db_image = crud.create_image(db, image_data)
+    return db_image
+
 @app.delete("/images/{image_id}")
 def delete_image(image_id: str, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
     image = db.query(models.Image).filter(models.Image.id == image_id).first()
@@ -230,6 +300,68 @@ def delete_image(image_id: str, db: Session = Depends(get_db), farmer: models.Fa
         raise HTTPException(status_code=403, detail="Access denied")
     crud.delete_image(db, image_id)
     return {"message": "Image deleted successfully"}
+
+@app.post("/analyze/image")
+def analyze_image(
+    image_id: str = Form(None),
+    field_id: str = Form(None),
+    crop_name: str = Form(""),
+    file: UploadFile = File(None),
+    db: Session = Depends(get_db),
+    farmer: models.Farmer = Depends(get_current_farmer),
+):
+    """
+    Test image analysis directly. Provide either:
+    - image_id: analyze an already-uploaded image
+    - file + crop_name: upload and analyze in one step
+    - field_id: analyze the most recent image on a field
+    Returns the raw AI analysis result.
+    """
+    from .ml.image_model import analyze_crop_image
+
+    image_url = None
+    notes = ""
+
+    if image_id:
+        img = db.query(models.Image).filter(models.Image.id == image_id).first()
+        if not img:
+            raise HTTPException(status_code=404, detail="Image not found")
+        if not crud.get_field_for_farmer(db, img.field_id, farmer.id):
+            raise HTTPException(status_code=403, detail="Access denied")
+        image_url = img.rgb_url
+        notes = img.notes or ""
+        if not crop_name:
+            field = crud.get_field(db, img.field_id)
+            crop_name = field.crop if field and field.crop else "unknown"
+    elif field_id:
+        if not crud.get_field_for_farmer(db, field_id, farmer.id):
+            raise HTTPException(status_code=404, detail="Field not found")
+        images = crud.get_latest_images(db, field_id)
+        if not images:
+            raise HTTPException(status_code=404, detail="No images found for this field")
+        image_url = images[0].rgb_url
+        notes = images[0].notes or ""
+        if not crop_name:
+            field = crud.get_field(db, field_id)
+            crop_name = field.crop if field and field.crop else "unknown"
+    elif file:
+        allowed = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
+        if file.content_type not in allowed:
+            raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed")
+        import asyncio
+        ext = file.filename.rsplit(".", 1)[-1] if "." in (file.filename or "") else "jpg"
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        filepath = os.path.join(UPLOADS_DIR, filename)
+        contents = file.file.read()
+        with open(filepath, "wb") as f:
+            f.write(contents)
+        image_url = f"/uploads/{filename}"
+        crop_name = crop_name or "unknown"
+    else:
+        raise HTTPException(status_code=400, detail="Provide image_id, field_id, or upload a file")
+
+    result = analyze_crop_image(image_url=image_url, notes=notes, crop_name=crop_name)
+    return result
 
 @app.get("/field/{field_id}/latest", response_model=schemas.FieldSnapshotV1)
 def get_field_snapshot(field_id: str, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
@@ -316,9 +448,11 @@ def get_recommendation(field_id: str, db: Session = Depends(get_db), farmer: mod
 
         ai_history = [d["rain"] for d in history_dicts[-7:]] if len(history_dicts) >= 7 else None
 
-        lstm_forecast = weather_ml_service.predict_next_3_days(field_id, history_dicts)
+        lstm_forecast = weather_ml_service.predict_ensemble(
+            field_id, snapshot.location.lat, snapshot.location.lon, history_dicts
+        )
     except Exception as e:
-        logger.error(f"LSTM Prediction failed: {e}")
+        logger.error(f"Weather prediction failed: {e}")
         lstm_forecast = None
 
     rec_response = recommendation.generate_recommendation_logic(snapshot, lstm_forecast, ai_history)
@@ -418,6 +552,13 @@ def get_sensor(sensor_id: str, db: Session = Depends(get_db), farmer: models.Far
 
     return sensor
 
+@app.delete("/sensors/{sensor_id}")
+def delete_sensor(sensor_id: str, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
+    deleted = crud.delete_sensor(db, sensor_id, farmer.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Sensor not found")
+    return {"message": "Sensor deleted"}
+
 @app.post("/sensors/{sensor_id}/assign", response_model=schemas.SensorAssignmentResponse)
 def assign_sensor(sensor_id: str, assignment: schemas.AssignmentCreate, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
     if sensor_id != assignment.sensor_id:
@@ -436,8 +577,44 @@ def assign_sensor(sensor_id: str, assignment: schemas.AssignmentCreate, db: Sess
     resp.field_name = field.name
     return resp
 
+# --- Crop recommendation dataset cache for realistic simulation ---
+_crop_data_cache: dict = {}
+
+# Maps canonical crop names to dataset labels in crop_recommendation.csv
+_CROP_TO_DATASET_LABEL = {
+    "rice": "rice",
+    "cotton": "cotton",
+    "maize": "maize",
+    "sorghum": "jute",       # closest grain crop in dataset
+    "groundnut": "mungbean", # both legumes, similar low-N profile
+    "wheat": "maize",        # similar nutrient needs
+}
+
+def _load_crop_data() -> dict:
+    """Load crop_recommendation.csv once, return {label: list_of_row_dicts}."""
+    if _crop_data_cache:
+        return _crop_data_cache
+    import csv
+    csv_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "data", "crop_recommendation.csv")
+    with open(csv_path, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            label = row["label"].strip().lower()
+            parsed = {
+                "n": float(row["N"]),
+                "p": float(row["P"]),
+                "k": float(row["K"]),
+                "ph": float(row["ph"]),
+                "moisture": float(row["humidity"]),
+            }
+            _crop_data_cache.setdefault(label, []).append(parsed)
+    return _crop_data_cache
+
+
 @app.post("/sensors/{sensor_id}/simulate", response_model=schemas.SensorSummary)
 def simulate_sensor_data(sensor_id: str, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
+    import random
+
     sensor = crud.get_sensor(db, sensor_id, farmer_id=farmer.id)
     if not sensor:
         raise HTTPException(status_code=404, detail="Sensor not found")
@@ -446,17 +623,78 @@ def simulate_sensor_data(sensor_id: str, db: Session = Depends(get_db), farmer: 
     if not assignment:
         raise HTTPException(status_code=400, detail="Sensor not assigned to any field")
 
-    import random
+    # --- 1. Get field context ---
+    field = crud.get_field(db, assignment.field_id)
+    crop_key = recommendation._normalize_crop(field.crop) if field and field.crop else ""
+    dataset_label = _CROP_TO_DATASET_LABEL.get(crop_key)
+
+    # --- 2. Load real crop data and sample a row ---
+    crop_data = _load_crop_data()
+    pool = crop_data.get(dataset_label) if dataset_label else None
+    if not pool:
+        # Unknown crop — sample from entire dataset
+        pool = [row for rows in crop_data.values() for row in rows]
+    sample = dict(random.choice(pool))
+
+    # --- 3. Scenario overlay (weighted random) ---
+    scenario = random.choices(
+        ["realistic", "deficiency", "ph_drift", "drought", "excellent", "multiple"],
+        weights=[40, 20, 10, 10, 10, 10],
+    )[0]
+
+    def apply_scenario(vals: dict, scenario_name: str) -> None:
+        if scenario_name == "realistic":
+            pass
+        elif scenario_name == "deficiency":
+            nutrient = random.choice(["n", "p", "k"])
+            vals[nutrient] *= random.uniform(0.3, 0.6)
+        elif scenario_name == "ph_drift":
+            vals["ph"] += random.choice([-1, 1]) * random.uniform(1.0, 2.0)
+        elif scenario_name == "drought":
+            vals["moisture"] = random.uniform(5.0, 15.0)
+        elif scenario_name == "excellent":
+            boost = random.uniform(1.3, 1.5)
+            for k in ("n", "p", "k"):
+                vals[k] *= boost
+        elif scenario_name == "multiple":
+            # Combine 2 random sub-scenarios
+            subs = random.sample(["deficiency", "ph_drift", "drought", "excellent"], 2)
+            for s in subs:
+                apply_scenario(vals, s)
+
+    apply_scenario(sample, scenario)
+
+    # --- 4. Sensor noise (±2-5% Gaussian) ---
+    for key in ("n", "p", "k", "ph", "moisture"):
+        noise_pct = random.gauss(0, 0.035)  # ~3.5% std dev
+        sample[key] *= (1 + noise_pct)
+
+    # --- 5. Temporal continuity: blend with last reading ---
+    last = crud.get_latest_sensor_reading(db, assignment.field_id)
+    if last:
+        blend = 0.3
+        sample["n"] = sample["n"] * (1 - blend) + last.n * blend
+        sample["p"] = sample["p"] * (1 - blend) + last.p * blend
+        sample["k"] = sample["k"] * (1 - blend) + last.k * blend
+        sample["ph"] = sample["ph"] * (1 - blend) + last.ph * blend
+        sample["moisture"] = sample["moisture"] * (1 - blend) + last.moisture * blend
+
+    # --- 6. Clamp to physical bounds ---
+    sample["n"] = max(0, round(sample["n"], 2))
+    sample["p"] = max(0, round(sample["p"], 2))
+    sample["k"] = max(0, round(sample["k"], 2))
+    sample["ph"] = round(max(0, min(14, sample["ph"])), 2)
+    sample["moisture"] = round(max(0, min(100, sample["moisture"])), 2)
 
     reading = schemas.SensorReadingCreate(
         field_id=assignment.field_id,
         sensor_id=sensor_id,
         ts=datetime.utcnow(),
-        moisture=random.uniform(20.0, 60.0),
-        ph=random.uniform(5.5, 7.5),
-        n=random.uniform(10.0, 50.0),
-        p=random.uniform(10.0, 50.0),
-        k=random.uniform(10.0, 50.0)
+        moisture=sample["moisture"],
+        ph=sample["ph"],
+        n=sample["n"],
+        p=sample["p"],
+        k=sample["k"],
     )
 
     db_reading = crud.create_sensor_reading(db, reading)
@@ -467,5 +705,5 @@ def simulate_sensor_data(sensor_id: str, db: Session = Depends(get_db), farmer: 
         ph=db_reading.ph,
         n=db_reading.n,
         p=db_reading.p,
-        k=db_reading.k
+        k=db_reading.k,
     )

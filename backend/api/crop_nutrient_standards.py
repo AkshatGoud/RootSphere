@@ -80,6 +80,75 @@ CROP_NUTRIENT_REQUIREMENTS = {
             "description": "Maize (Flowering/Grain Filling) - High N/K for yield",
             "sources": ["FAO Fertilizer Guidelines", "TNAU Agritech"]
         }
+    },
+    "cotton": {
+        "vegetative": {
+            "n_min": 250,
+            "p_min": 11,
+            "k_min": 110,
+            "ph_range": (6.0, 7.5),
+            "moisture_min": 25,
+            "description": "Cotton (Vegetative Stage) - Moderate N, sensitive to pH",
+            "sources": [
+                "TNAU: 80 kg N, 40 kg P₂O₅, 40 kg K₂O/ha (rainfed)",
+                "ICAR: 120 kg N, 60 kg P₂O₅, 60 kg K₂O/ha (irrigated)"
+            ]
+        },
+        "flowering": {
+            "n_min": 200,
+            "p_min": 15,
+            "k_min": 130,
+            "ph_range": (6.0, 7.5),
+            "moisture_min": 30,
+            "description": "Cotton (Flowering/Boll Development) - Increased K for fiber",
+            "sources": ["TNAU Crop Production Guide", "CICR Nagpur Guidelines"]
+        }
+    },
+    "groundnut": {
+        "vegetative": {
+            "n_min": 200,  # Legume - fixes own N, lower requirement
+            "p_min": 15,
+            "k_min": 100,
+            "ph_range": (5.5, 7.0),
+            "moisture_min": 25,
+            "description": "Groundnut (Vegetative Stage) - Low N (legume), moderate P/K",
+            "sources": [
+                "TNAU: 25 kg N, 50 kg P₂O₅, 75 kg K₂O/ha",
+                "ICAR: Seed inoculation with Rhizobium recommended"
+            ]
+        },
+        "flowering": {
+            "n_min": 150,
+            "p_min": 20,
+            "k_min": 120,
+            "ph_range": (5.5, 7.0),
+            "moisture_min": 30,
+            "description": "Groundnut (Pegging/Pod Formation) - High Ca/P for pod fill",
+            "sources": ["TNAU Agritech Portal", "ICAR Groundnut Production Guide"]
+        }
+    },
+    "sorghum": {
+        "vegetative": {
+            "n_min": 260,
+            "p_min": 10,
+            "k_min": 110,
+            "ph_range": (5.5, 7.5),
+            "moisture_min": 20,  # Drought tolerant
+            "description": "Sorghum (Vegetative Stage) - Moderate N, drought tolerant",
+            "sources": [
+                "TNAU: 80 kg N, 40 kg P₂O₅/ha",
+                "ICAR: 100 kg N, 50 kg P₂O₅, 25 kg K₂O/ha (hybrid)"
+            ]
+        },
+        "flowering": {
+            "n_min": 200,
+            "p_min": 12,
+            "k_min": 120,
+            "ph_range": (5.5, 7.5),
+            "moisture_min": 25,
+            "description": "Sorghum (Flowering/Grain Filling)",
+            "sources": ["NRCS Sorghum Guidelines", "TNAU Agritech"]
+        }
     }
 }
 

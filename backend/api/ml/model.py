@@ -9,12 +9,19 @@ logger = logging.getLogger("api")
 class SoilHealthClassifier:
     def __init__(self):
         self.model = None
-        self.blobs = ["Crop_Rice", "Crop_Wheat", "Crop_Maize"]
+        self.blobs = [
+            "Crop_Apple", "Crop_Banana", "Crop_Blackgram", "Crop_Chickpea",
+            "Crop_Coconut", "Crop_Coffee", "Crop_Cotton", "Crop_Grapes",
+            "Crop_Groundnut", "Crop_Jute", "Crop_Kidneybeans", "Crop_Lentil",
+            "Crop_Maize", "Crop_Mango", "Crop_Mothbeans", "Crop_Mungbean",
+            "Crop_Muskmelon", "Crop_Orange", "Crop_Papaya", "Crop_Pigeonpeas",
+            "Crop_Pomegranate", "Crop_Rice", "Crop_Sorghum", "Crop_Watermelon",
+            "Crop_Wheat",
+        ]
         self.load_model()
-        
+
     def load_model(self):
         try:
-            # Assume model is in same directory
             model_path = os.path.join(os.path.dirname(__file__), "soil_classifier.joblib")
             if os.path.exists(model_path):
                 self.model = joblib.load(model_path)
@@ -27,7 +34,7 @@ class SoilHealthClassifier:
     def predict(self, n: float, p: float, k: float, ph: float, moisture: float, crop: str) -> str:
         if not self.model:
             return "Model Not Available"
-            
+
         try:
             # Prepare Input DataFrame
             input_data = {
@@ -37,26 +44,22 @@ class SoilHealthClassifier:
                 "pH": [ph],
                 "Moisture": [moisture]
             }
-            
+
             # Add one-hot encoded crop columns
             target_col = f"Crop_{crop}"
             for c in self.blobs:
                 input_data[c] = [1 if c == target_col else 0]
-                
+
             df = pd.DataFrame(input_data)
-            
-            # Enforce column order matching training (N, P, K, pH, Moisture, Crop_Maize, Crop_Rice, Crop_Wheat)
-            # The order in training was: N, P, K, pH, Moisture, Crop_Maize, Crop_Rice, Crop_Wheat (alphabetical? No, get_dummies result)
-            # train_soil_model.py: df.drop(columns=["Status"])
-            # Let's verify exact columns. `pd.get_dummies` creates sorted columns by default.
-            # So Crop_Maize, Crop_Rice, Crop_Wheat.
-            expected_cols = ["N", "P", "K", "pH", "Moisture", "Crop_Maize", "Crop_Rice", "Crop_Wheat"]
+
+            # Enforce column order matching training
+            expected_cols = ["N", "P", "K", "pH", "Moisture"] + sorted(self.blobs)
             df = df[expected_cols]
-            
+
             # Predict
             prediction = self.model.predict(df)[0]
             return str(prediction)
-            
+
         except Exception as e:
             logger.error(f"Prediction Error: {e}")
             return "Analysis Failed"

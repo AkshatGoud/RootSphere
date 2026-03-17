@@ -20,6 +20,7 @@ COPY api/ api/
 COPY migrations/ migrations/
 COPY contracts/ contracts/
 COPY tools/ tools/
+COPY scripts/ scripts/
 COPY tests/ tests/
 COPY alembic.ini .
 
