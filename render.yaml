@@ -3,12 +3,13 @@ databases:
     plan: free
     databaseName: smartsoil
     user: user
+    region: singapore
 
 services:
-  # Backend API
   - type: web
     name: rootsphere-api
     plan: free
+    region: singapore
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
@@ -20,17 +21,3 @@ services:
       - key: SECRET_KEY
         generateValue: true
     healthCheckPath: /health
-
-  # Frontend Static Site
-  - type: web
-    name: rootsphere-frontend
-    plan: free
-    buildCommand: cd frontend/nomad-fields/RootSphere-Frontend && npm install && npm run build
-    staticPublishPath: frontend/nomad-fields/RootSphere-Frontend/dist
-    envVars:
-      - key: VITE_API_BASE_URL
-        sync: false # Set manually after backend deploys
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
