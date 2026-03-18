@@ -522,6 +522,7 @@ def create_sensor(sensor: schemas.SensorCreate, db: Session = Depends(get_db), f
 @app.get("/sensors", response_model=List[schemas.SensorResponse])
 def list_sensors(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
     sensors = crud.get_sensors(db, farmer_id=farmer.id, skip=skip, limit=limit)
+    needs_commit = False
     for s in sensors:
         assignment = crud.get_active_assignment(db, s.id)
         if assignment:
@@ -530,6 +531,12 @@ def list_sensors(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
             if field:
                 assign_resp.field_name = field.name
             s.current_assignment = assign_resp
+            # Auto-heal: sensor has active assignment but status is still draft
+            if s.status == "draft":
+                s.status = "active"
+                needs_commit = True
+    if needs_commit:
+        db.commit()
     return sensors
 
 @app.get("/sensors/{sensor_id}", response_model=schemas.SensorResponse)
@@ -545,6 +552,10 @@ def get_sensor(sensor_id: str, db: Session = Depends(get_db), farmer: models.Far
         if field:
             assign_resp.field_name = field.name
         sensor.current_assignment = assign_resp
+        # Auto-heal: sensor has active assignment but status is still draft
+        if sensor.status == "draft":
+            sensor.status = "active"
+            db.commit()
 
     return sensor
 
@@ -694,6 +705,11 @@ def simulate_sensor_data(sensor_id: str, db: Session = Depends(get_db), farmer: 
     )
 
     db_reading = crud.create_sensor_reading(db, reading)
+
+    # Ensure sensor status is active after producing data
+    if sensor.status != "active":
+        sensor.status = "active"
+        db.commit()
 
     return schemas.SensorSummary(
         ts=db_reading.ts,

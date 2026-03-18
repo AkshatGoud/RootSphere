@@ -293,7 +293,7 @@ def assign_sensor(db: Session, assignment: schemas.AssignmentCreate):
         current.active = False
         current.ended_at = datetime.utcnow()
         db.add(current)
-    
+
     # Create new assignment
     new_assignment = models.SensorAssignment(
         sensor_id=assignment.sensor_id,
@@ -303,6 +303,13 @@ def assign_sensor(db: Session, assignment: schemas.AssignmentCreate):
         started_at=datetime.utcnow()
     )
     db.add(new_assignment)
+
+    # Mark the sensor as active now that it's assigned to a field
+    sensor = db.query(models.Sensor).filter(models.Sensor.id == assignment.sensor_id).first()
+    if sensor:
+        sensor.status = "active"
+        db.add(sensor)
+
     db.commit()
     db.refresh(new_assignment)
     return new_assignment

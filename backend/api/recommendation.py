@@ -61,33 +61,67 @@ NUTRIENT_THRESHOLDS_LOW = {
 
 FERTILIZER_TARGETS = {
     "wheat": {
+        "seedling": {"n": 20.0, "p": 35.0, "k": 15.0},   # Low N (burn risk), high P (roots)
         "vegetative": {"n": 50.0, "p": 30.0, "k": 20.0},
-        "flowering": {"n": 30.0, "p": 40.0, "k": 30.0}
+        "flowering": {"n": 30.0, "p": 40.0, "k": 30.0},
+        "fruiting": {"n": 20.0, "p": 35.0, "k": 35.0},
+        "mature": {"n": 0.0, "p": 0.0, "k": 0.0},
+        "harvest": {"n": 0.0, "p": 0.0, "k": 0.0}
     },
     "rice": {
+        "seedling": {"n": 25.0, "p": 35.0, "k": 15.0},   # Starter dose for nursery
         "vegetative": {"n": 60.0, "p": 30.0, "k": 30.0},
-        "flowering": {"n": 40.0, "p": 40.0, "k": 40.0}
+        "flowering": {"n": 40.0, "p": 40.0, "k": 40.0},
+        "fruiting": {"n": 20.0, "p": 35.0, "k": 45.0},
+        "mature": {"n": 0.0, "p": 0.0, "k": 0.0},
+        "harvest": {"n": 0.0, "p": 0.0, "k": 0.0}
     },
     "maize": {
+        "seedling": {"n": 20.0, "p": 35.0, "k": 15.0},
         "vegetative": {"n": 55.0, "p": 30.0, "k": 25.0},
-        "flowering": {"n": 35.0, "p": 35.0, "k": 35.0}
+        "flowering": {"n": 35.0, "p": 35.0, "k": 35.0},
+        "fruiting": {"n": 25.0, "p": 30.0, "k": 40.0},
+        "mature": {"n": 0.0, "p": 0.0, "k": 0.0},
+        "harvest": {"n": 0.0, "p": 0.0, "k": 0.0}
     },
     "cotton": {
+        "seedling": {"n": 15.0, "p": 30.0, "k": 15.0},
         "vegetative": {"n": 50.0, "p": 25.0, "k": 25.0},
-        "flowering": {"n": 30.0, "p": 30.0, "k": 30.0}
+        "flowering": {"n": 30.0, "p": 30.0, "k": 30.0},
+        "fruiting": {"n": 20.0, "p": 25.0, "k": 40.0},
+        "mature": {"n": 0.0, "p": 0.0, "k": 0.0},
+        "harvest": {"n": 0.0, "p": 0.0, "k": 0.0}
     },
     "groundnut": {
+        "seedling": {"n": 5.0, "p": 35.0, "k": 15.0},    # Legume: minimal N, high P for nodules
         "vegetative": {"n": 10.0, "p": 30.0, "k": 20.0},
-        "flowering": {"n": 10.0, "p": 35.0, "k": 25.0}
+        "flowering": {"n": 10.0, "p": 35.0, "k": 25.0},
+        "fruiting": {"n": 5.0, "p": 35.0, "k": 30.0},
+        "mature": {"n": 0.0, "p": 0.0, "k": 0.0},
+        "harvest": {"n": 0.0, "p": 0.0, "k": 0.0}
     },
     "sorghum": {
+        "seedling": {"n": 15.0, "p": 30.0, "k": 15.0},
         "vegetative": {"n": 45.0, "p": 25.0, "k": 20.0},
-        "flowering": {"n": 30.0, "p": 30.0, "k": 25.0}
+        "flowering": {"n": 30.0, "p": 30.0, "k": 25.0},
+        "fruiting": {"n": 20.0, "p": 25.0, "k": 30.0},
+        "mature": {"n": 0.0, "p": 0.0, "k": 0.0},
+        "harvest": {"n": 0.0, "p": 0.0, "k": 0.0}
     },
     # Default fallback
     "default": {
         "default": {"n": 40.0, "p": 30.0, "k": 20.0}
     }
+}
+
+# Seedling-specific moisture thresholds (irrigate sooner — seedlings are more sensitive)
+SEEDLING_MOISTURE_THRESHOLDS = {
+    "rice": 55.0,       # Higher than normal 50 — seedlings need consistent water
+    "wheat": 35.0,      # Higher than normal 30
+    "maize": 30.0,      # Higher than normal 25
+    "cotton": 30.0,     # Higher than normal 25
+    "groundnut": 30.0,  # Higher than normal 25
+    "sorghum": 25.0,    # Higher than normal 20
 }
 
 def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_forecast: Optional[List[float]] = None, ai_history: Optional[List[float]] = None) -> schemas.RecommendationResponse:
@@ -131,7 +165,8 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
         img_result = analyze_crop_image(
             image_url=latest_img.rgb_url,
             notes=latest_img.notes,
-            crop_name=snapshot.crop
+            crop_name=snapshot.crop,
+            growth_stage=stage
         )
 
         # Cross-check 1: Does the image match the field's registered crop?
@@ -175,7 +210,11 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
         why_list.append("Cannot determine irrigation need without soil moisture.")
     else:
         moisture = snapshot.sensor_readings.moisture
-        thresh = MOISTURE_THRESHOLDS.get(crop, 30.0)
+        # Seedlings are more sensitive to water stress — use higher threshold
+        if stage == "seedling":
+            thresh = SEEDLING_MOISTURE_THRESHOLDS.get(crop, 35.0)
+        else:
+            thresh = MOISTURE_THRESHOLDS.get(crop, 30.0)
         
         # Check rainfall forecast next 24h
         rainfall_next_24h = 0.0
@@ -322,6 +361,19 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
             n_rec = targets["n"]
             p_rec = targets["p"]
             k_rec = targets["k"]
+
+            # Seedling-specific fertilizer advice
+            if stage == "seedling":
+                fert_timing = "apply basal dose at transplanting"
+                why_list.append("Seedling stage: Use starter fertilizer (high-P blend like DAP/10-26-26). Avoid heavy N — risk of seedling burn.")
+            # Mature/harvest stages — no fertilizer needed
+            elif stage in ("mature", "harvest"):
+                fert_action = "NO_ACTION"
+                n_rec = 0.0
+                p_rec = 0.0
+                k_rec = 0.0
+                fert_timing = "N/A"
+                why_list.append(f"{stage.capitalize()} stage: No fertilizer application needed. Focus on {'grain drying' if stage == 'mature' else 'soil recovery'}.")
         else:
             why_list.append(f"Soil is healthy for {crop.capitalize()} ({stage} stage)")
             why_list.append(f"Digital check: {ai_analysis}")
@@ -346,6 +398,17 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
         # Soil says healthy but image sees disease → trust image for diseases
         if ai_analysis == "Healthy" and image_issue:
             why_list.append("Cross-check: Soil is healthy but image shows disease/pest — this is a separate issue from soil nutrients")
+
+    # --- SEEDLING-SPECIFIC RISK ALERTS ---
+    if stage == "seedling" and snapshot.weather:
+        temp = snapshot.weather.temp_c
+        if temp is not None:
+            if temp < 10:
+                risk_alert = risk_alert or f"Cold stress alert: {temp:.0f}°C — seedlings are highly vulnerable to frost/cold."
+                why_list.append(f"Seedling risk: Temperature {temp:.0f}°C is dangerously low. Protect with mulch or row covers.")
+            elif temp > 38:
+                risk_alert = risk_alert or f"Heat stress alert: {temp:.0f}°C — seedlings may wilt or die."
+                why_list.append(f"Seedling risk: Temperature {temp:.0f}°C is too high. Use shade cloth or irrigate to cool soil.")
 
     # Append Image Treatment if exists
     if image_treatment and not crop_mismatch:

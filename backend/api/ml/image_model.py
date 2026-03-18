@@ -86,6 +86,17 @@ Respond ONLY with valid JSON (no markdown, no code fences):
 {"detected_crop": "string — the crop/plant you see in the image, or null if not identifiable", "detected_issue": "string or null if healthy", "confidence": 0.0, "severity": "none", "treatment": "string or null if healthy"}
 """
 
+# Additional seedling-specific analysis instructions appended to prompts
+_SEEDLING_PROMPT_EXTRA = """
+IMPORTANT: This crop is in the SEEDLING stage. Pay special attention to:
+- Germination uniformity and seedling vigor
+- Damping-off disease symptoms (wilting at soil line, thin/rotting stems)
+- Seedling color (pale = nutrient deficiency, yellow = N deficiency)
+- Plant spacing issues (overcrowding, gaps)
+- Cutworm or bird damage
+- Root development quality if visible
+"""
+
 # Singleton for HuggingFace pipeline (lazy loaded)
 _hf_pipeline = None
 _hf_load_attempted = False
@@ -245,7 +256,7 @@ def _keyword_fallback(image_url: str, notes: str, crop_name: str) -> dict:
     }
 
 
-def _analyze_with_gemini(image, crop_name: str) -> dict | None:
+def _analyze_with_gemini(image, crop_name: str, growth_stage: str = "") -> dict | None:
     """Analyze crop image using Gemini Vision API. Returns dict or None on failure."""
     client = _get_gemini_client()
     if client is None:
@@ -260,6 +271,8 @@ def _analyze_with_gemini(image, crop_name: str) -> dict | None:
         img_bytes = img_buffer.getvalue()
 
         user_prompt = f"The farmer says this is: {crop_name}. First identify what crop/plant is actually in this image, then analyze for diseases, pests, or nutrient deficiencies."
+        if growth_stage.lower() == "seedling":
+            user_prompt += _SEEDLING_PROMPT_EXTRA
 
         image_part = types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg")
         text_part = types.Part(text=user_prompt)
@@ -344,7 +357,7 @@ def _get_openai_client():
     return _openai_client
 
 
-def _analyze_with_openai(image, crop_name: str) -> dict | None:
+def _analyze_with_openai(image, crop_name: str, growth_stage: str = "") -> dict | None:
     """Analyze crop image using OpenAI GPT-4o-mini. Returns dict or None on failure."""
     client = _get_openai_client()
     if client is None:
@@ -359,6 +372,8 @@ def _analyze_with_openai(image, crop_name: str) -> dict | None:
         b64_image = base64.b64encode(img_buffer.getvalue()).decode()
 
         user_prompt = f"The farmer says this is: {crop_name}. First identify what crop/plant is actually in this image, then analyze for diseases, pests, or nutrient deficiencies."
+        if growth_stage.lower() == "seedling":
+            user_prompt += _SEEDLING_PROMPT_EXTRA
 
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -435,7 +450,7 @@ def _get_groq_client():
     return _groq_client
 
 
-def _analyze_with_groq(image, crop_name: str) -> dict | None:
+def _analyze_with_groq(image, crop_name: str, growth_stage: str = "") -> dict | None:
     """Analyze crop image using Groq (Llama 4 Scout vision). Returns dict or None on failure."""
     client = _get_groq_client()
     if client is None:
@@ -450,6 +465,8 @@ def _analyze_with_groq(image, crop_name: str) -> dict | None:
         b64_image = base64.b64encode(img_buffer.getvalue()).decode()
 
         user_prompt = f"The farmer says this is: {crop_name}. First identify what crop/plant is actually in this image, then analyze for diseases, pests, or nutrient deficiencies."
+        if growth_stage.lower() == "seedling":
+            user_prompt += _SEEDLING_PROMPT_EXTRA
 
         response = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -562,7 +579,7 @@ def _analyze_with_huggingface(image, crop_name: str) -> dict | None:
         return None
 
 
-def analyze_crop_image(image_url: str, notes: str = "", crop_name: str = "paddy") -> dict:
+def analyze_crop_image(image_url: str, notes: str = "", crop_name: str = "paddy", growth_stage: str = "") -> dict:
     """
     Analyze a crop image for disease detection.
 
@@ -572,6 +589,7 @@ def analyze_crop_image(image_url: str, notes: str = "", crop_name: str = "paddy"
         image_url: URL of input image
         notes: User notes about the image
         crop_name: The specific crop type (e.g. 'Paddy (Rice)', 'Cotton')
+        growth_stage: The current growth stage (e.g. 'seedling', 'vegetative')
 
     Returns:
         dict: {detected_issue, treatment, confidence, severity}
@@ -585,17 +603,17 @@ def analyze_crop_image(image_url: str, notes: str = "", crop_name: str = "paddy"
         return _keyword_fallback(image_url, notes, crop_name)
 
     # Level 1: Gemini Vision API (free)
-    result = _analyze_with_gemini(image, crop_name)
+    result = _analyze_with_gemini(image, crop_name, growth_stage)
     if result is not None:
         return result
 
     # Level 2: Groq - Llama 4 Scout (free)
-    result = _analyze_with_groq(image, crop_name)
+    result = _analyze_with_groq(image, crop_name, growth_stage)
     if result is not None:
         return result
 
     # Level 3: OpenAI GPT-4o-mini (paid)
-    result = _analyze_with_openai(image, crop_name)
+    result = _analyze_with_openai(image, crop_name, growth_stage)
     if result is not None:
         return result
 
