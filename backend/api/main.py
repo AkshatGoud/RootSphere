@@ -119,6 +119,37 @@ def login_oauth2(form_data: OAuth2PasswordRequestForm = Depends(), db: Session =
         "farmer_name": farmer.name
     }
 
+@app.post("/auth/google", response_model=schemas.Token)
+def google_login(payload: schemas.GoogleAuthRequest, db: Session = Depends(get_db)):
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not google_client_id:
+        raise HTTPException(status_code=500, detail="Google SSO not configured")
+
+    try:
+        idinfo = google_id_token.verify_oauth2_token(
+            payload.credential, google_requests.Request(), google_client_id
+        )
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    email = idinfo.get("email")
+    name = idinfo.get("name", email.split("@")[0])
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Google account has no email")
+
+    farmer = crud.find_or_create_google_farmer(db, email=email, name=name)
+    access_token = auth_service.create_access_token(data={"sub": farmer.id})
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "farmer_id": farmer.id,
+        "farmer_name": farmer.name,
+    }
+
 @app.post("/auth/forgot-password")
 def forgot_password(req: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
     farmer = crud.get_farmer_by_email(db, req.email)
@@ -304,61 +335,28 @@ def delete_image(image_id: str, db: Session = Depends(get_db), farmer: models.Fa
     return {"message": "Image deleted successfully"}
 
 @app.post("/analyze/image")
-def analyze_image(
-    image_id: str = Form(None),
-    field_id: str = Form(None),
+async def analyze_image(
     crop_name: str = Form(""),
-    file: UploadFile = File(None),
+    file: UploadFile = File(...),
     db: Session = Depends(get_db),
     farmer: models.Farmer = Depends(get_current_farmer),
 ):
     """
-    Test image analysis directly. Provide either:
-    - image_id: analyze an already-uploaded image
-    - file + crop_name: upload and analyze in one step
-    - field_id: analyze the most recent image on a field
+    Test image analysis directly. Upload a photo and optionally specify crop_name.
     Returns the raw AI analysis result.
     """
     from .ml.image_model import analyze_crop_image
+    import base64
 
-    image_url = None
-    notes = ""
+    allowed = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
+    if file.content_type not in allowed:
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed")
 
-    if image_id:
-        img = db.query(models.Image).filter(models.Image.id == image_id).first()
-        if not img:
-            raise HTTPException(status_code=404, detail="Image not found")
-        if not crud.get_field_for_farmer(db, img.field_id, farmer.id):
-            raise HTTPException(status_code=403, detail="Access denied")
-        image_url = img.rgb_url
-        notes = img.notes or ""
-        if not crop_name:
-            field = crud.get_field(db, img.field_id)
-            crop_name = field.crop if field and field.crop else "unknown"
-    elif field_id:
-        if not crud.get_field_for_farmer(db, field_id, farmer.id):
-            raise HTTPException(status_code=404, detail="Field not found")
-        images = crud.get_latest_images(db, field_id)
-        if not images:
-            raise HTTPException(status_code=404, detail="No images found for this field")
-        image_url = images[0].rgb_url
-        notes = images[0].notes or ""
-        if not crop_name:
-            field = crud.get_field(db, field_id)
-            crop_name = field.crop if field and field.crop else "unknown"
-    elif file:
-        allowed = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
-        if file.content_type not in allowed:
-            raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed")
-        import base64
-        contents = file.file.read()
-        mime = file.content_type or "image/jpeg"
-        image_url = f"data:{mime};base64,{base64.b64encode(contents).decode()}"
-        crop_name = crop_name or "unknown"
-    else:
-        raise HTTPException(status_code=400, detail="Provide image_id, field_id, or upload a file")
+    contents = await file.read()
+    mime = file.content_type or "image/jpeg"
+    image_url = f"data:{mime};base64,{base64.b64encode(contents).decode()}"
 
-    result = analyze_crop_image(image_url=image_url, notes=notes, crop_name=crop_name)
+    result = analyze_crop_image(image_url=image_url, notes="", crop_name=crop_name or "unknown")
     return result
 
 @app.get("/field/{field_id}/latest", response_model=schemas.FieldSnapshotV1)

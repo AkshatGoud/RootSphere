@@ -52,6 +52,23 @@ def create_farmer(db: Session, farmer: schemas.FarmerCreate):
 def get_farmer_by_email(db: Session, email: str):
     return db.query(models.Farmer).filter(models.Farmer.email == email).first()
 
+def find_or_create_google_farmer(db: Session, email: str, name: str) -> models.Farmer:
+    """Find existing farmer by email or create a new Google-only farmer."""
+    farmer = db.query(models.Farmer).filter(models.Farmer.email == email).first()
+    if farmer:
+        return farmer
+    farmer = models.Farmer(
+        name=name,
+        phone="",
+        email=email,
+        password_hash=None,
+        language="en",
+    )
+    db.add(farmer)
+    db.commit()
+    db.refresh(farmer)
+    return farmer
+
 def get_farmer(db: Session, farmer_id: str):
     return db.query(models.Farmer).filter(models.Farmer.id == farmer_id).first()
 

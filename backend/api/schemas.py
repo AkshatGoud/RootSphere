@@ -33,6 +33,9 @@ class ResetPasswordRequest(BaseModel):
     code: str
     new_password: str
 
+class GoogleAuthRequest(BaseModel):
+    credential: str  # Google ID token JWT
+
 class Token(BaseModel):
     access_token: str
     token_type: str
