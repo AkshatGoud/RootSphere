@@ -172,6 +172,14 @@ export const snapshotApi = {
 
 // Recommendation APIs
 export const recommendationApi = {
+  /** Returns the most recent recommendation if younger than max_age_minutes,
+   *  null otherwise. No ML inference triggered. */
+  getLatest: (fieldId: string, maxAgeMinutes: number = 60): Promise<Recommendation | null> =>
+    request<Recommendation | null>(
+      `/recommend/${fieldId}/latest?max_age_minutes=${maxAgeMinutes}`
+    ),
+
+  /** Triggers a fresh ML run + persists a new row. Use sparingly. */
   generate: (fieldId: string): Promise<Recommendation> =>
     request<Recommendation>(`/recommend/${fieldId}`, {
       method: "POST",

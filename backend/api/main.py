@@ -434,6 +434,44 @@ def get_field_snapshot(field_id: str, db: Session = Depends(get_db), farmer: mod
 
     return snapshot
 
+@app.get("/recommend/{field_id}/latest", response_model=Optional[schemas.RecommendationResponse])
+def get_latest_recommendation(
+    field_id: str,
+    max_age_minutes: int = 60,
+    db: Session = Depends(get_db),
+    farmer: models.Farmer = Depends(get_current_farmer),
+):
+    """Return the most recent cached recommendation for this field, if it's
+    younger than `max_age_minutes`. Returns null otherwise. Lets the frontend
+    avoid re-running ML inference on every page mount."""
+    if not crud.get_field_for_farmer(db, field_id, farmer.id):
+        raise HTTPException(status_code=404, detail="Field not found")
+
+    cutoff = datetime.utcnow() - timedelta(minutes=max_age_minutes)
+    db_rec = (
+        db.query(models.Recommendation)
+        .filter(models.Recommendation.field_id == field_id)
+        .filter(models.Recommendation.ts >= cutoff)
+        .order_by(models.Recommendation.ts.desc())
+        .first()
+    )
+    if not db_rec:
+        return None
+
+    snapshot = get_field_snapshot(field_id, db, farmer)
+    action = db_rec.action_json or {}
+    return schemas.RecommendationResponse(
+        id=db_rec.id,
+        field_id=db_rec.field_id,
+        ts=db_rec.ts,
+        irrigation=schemas.IrrigationAction(**action.get("irrigation", {"action": "UNKNOWN", "liters_per_acre": 0.0, "timing": ""})),
+        fertilizer=schemas.FertilizerAction(**action.get("fertilizer", {"action": "NO_ACTION", "n_kg_acre": 0.0, "p_kg_acre": 0.0, "k_kg_acre": 0.0, "timing": ""})),
+        data_completeness=db_rec.data_completeness,
+        why=db_rec.why_json or [],
+        snapshot_used=snapshot,
+    )
+
+
 @app.post("/recommend/{field_id}", response_model=schemas.RecommendationResponse)
 def get_recommendation(field_id: str, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
     snapshot = get_field_snapshot(field_id, db, farmer)

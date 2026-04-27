@@ -57,21 +57,42 @@ export default function RecommendationResult() {
 
   useEffect(() => {
     if (fieldId) {
-      generateRecommendation();
+      loadRecommendation();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldId]);
 
-  const generateRecommendation = async () => {
+  /** On mount we try the cached version first (free, no ML run, no DB write).
+   *  Only fall through to a fresh generate if there's no recent cache or the
+   *  user explicitly clicks "Refresh". */
+  const loadRecommendation = async () => {
     if (!fieldId) return;
-
     setIsLoading(true);
     setError(null);
+    try {
+      const cached = await recommendationApi.getLatest(fieldId, 60);
+      if (cached) {
+        setRecommendation(cached);
+        setFeedbackSubmitted(false);
+        setShowFeedbackReason(false);
+        setFeedbackReason("");
+        return;
+      }
+      await generateFreshRecommendation();
+    } catch (err) {
+      setError(t("Failed to load recommendation. Please try again."));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  const generateFreshRecommendation = async () => {
+    if (!fieldId) return;
+    setIsLoading(true);
+    setError(null);
     try {
       const data = await recommendationApi.generate(fieldId);
       setRecommendation(data);
-      // Determine if we should show feedback (not submitted yet)
-      // For now, assume fresh recommendation needs feedback
       setFeedbackSubmitted(false);
       setShowFeedbackReason(false);
       setFeedbackReason("");
@@ -132,7 +153,7 @@ export default function RecommendationResult() {
         <h2 className="text-xl font-bold text-slate-900 mb-2">{t("Analysis Failed")}</h2>
         <p className="text-slate-500 mb-6">{error || t("Could not generate recommendation")}</p>
         <button
-          onClick={generateRecommendation}
+          onClick={generateFreshRecommendation}
           className="flex items-center gap-2 bg-white border border-slate-300 px-4 py-2 rounded-lg hover:bg-slate-50"
         >
           <span className="material-symbols-outlined text-lg">refresh</span>
@@ -173,9 +194,14 @@ export default function RecommendationResult() {
             </div>
           </div>
           <div className="flex gap-3">
-            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
-              <span className="material-symbols-outlined text-[20px]">share</span>
-              {t("Share")}
+            <button
+              onClick={generateFreshRecommendation}
+              disabled={isLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all disabled:opacity-50"
+              title={t("Re-run analysis with the latest sensor and weather data")}
+            >
+              <span className={`material-symbols-outlined text-[20px] ${isLoading ? "animate-spin" : ""}`}>refresh</span>
+              {t("Refresh")}
             </button>
             <button
               onClick={() => window.print()}
