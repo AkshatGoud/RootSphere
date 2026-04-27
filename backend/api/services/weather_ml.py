@@ -224,7 +224,7 @@ class WeatherMLService:
         try:
             # Load artifacts
             model = LSTMWeatherModel(input_size=self.input_size, hidden_size=64, num_layers=3)
-            model.load_state_dict(torch.load(model_path))
+            model.load_state_dict(torch.load(model_path, weights_only=True))
             model.eval()
 
             scaler = joblib.load(scaler_path)

@@ -227,24 +227,6 @@ def delete_image(db: Session, image_id: str):
 def get_field(db: Session, field_id: str):
     return db.query(models.Field).filter(models.Field.id == field_id).first()
 
-# --- Helper to create farmer/field if needed (for simulator) ---
-def ensure_farmer_field(db: Session, farmer_id: str, field_id: str):
-    farmer = db.query(models.Farmer).filter(models.Farmer.id == farmer_id).first()
-    if not farmer:
-        farmer = models.Farmer(id=farmer_id, name="Simulated Farmer", phone="1234567890")
-        db.add(farmer)
-    
-    field = db.query(models.Field).filter(models.Field.id == field_id).first()
-    if not field:
-        field = models.Field(
-            id=field_id, farmer_id=farmer_id, name="Sim Field", 
-            crop="wheat", growth_stage="vegetative", lat=20.0, lon=78.0
-        )
-        db.add(field)
-    
-    db.commit()
-    return field
-
 # --- Sensor Management ---
 
 def create_sensor(db: Session, sensor: schemas.SensorCreate, farmer_id: str):

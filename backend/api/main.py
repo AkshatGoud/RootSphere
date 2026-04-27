@@ -34,9 +34,12 @@ UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
+_cors_env = os.getenv("CORS_ORIGINS", "http://localhost:8080")
+CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # For development
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -89,10 +92,12 @@ def create_farmer(farmer: schemas.FarmerCreate, db: Session = Depends(get_db)):
 @app.post("/login", response_model=schemas.Token)
 def login(form_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     farmer = crud.get_farmer_by_email(db, form_data.email)
-    if not farmer:
-        raise HTTPException(status_code=404, detail="No account found with this email")
+    # Generic message for both branches to prevent user enumeration.
+    invalid_creds = HTTPException(status_code=401, detail="Incorrect email or password")
+    if not farmer or not farmer.password_hash:
+        raise invalid_creds
     if not auth_service.verify_password(form_data.password, farmer.password_hash):
-        raise HTTPException(status_code=401, detail="Incorrect password")
+        raise invalid_creds
 
     access_token = auth_service.create_access_token(data={"sub": farmer.id})
     return {
@@ -106,10 +111,11 @@ def login(form_data: schemas.LoginRequest, db: Session = Depends(get_db)):
 def login_oauth2(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """OAuth2-compatible login for Swagger UI. Email goes in the 'username' field."""
     farmer = crud.get_farmer_by_email(db, form_data.username)
-    if not farmer:
-        raise HTTPException(status_code=404, detail="No account found with this email")
+    invalid_creds = HTTPException(status_code=401, detail="Incorrect email or password")
+    if not farmer or not farmer.password_hash:
+        raise invalid_creds
     if not auth_service.verify_password(form_data.password, farmer.password_hash):
-        raise HTTPException(status_code=401, detail="Incorrect password")
+        raise invalid_creds
 
     access_token = auth_service.create_access_token(data={"sub": farmer.id})
     return {
@@ -152,21 +158,20 @@ def google_login(payload: schemas.GoogleAuthRequest, db: Session = Depends(get_d
 
 @app.post("/auth/forgot-password")
 def forgot_password(req: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
+    # Always return the same message regardless of whether the email is registered,
+    # to prevent enumeration of valid accounts.
     farmer = crud.get_farmer_by_email(db, req.email)
-    if not farmer:
-        raise HTTPException(status_code=404, detail="No account found with this email")
+    if farmer:
+        import random
+        code = f"{random.randint(100000, 999999)}"
+        farmer.reset_code = code
+        farmer.reset_expires = datetime.utcnow() + timedelta(minutes=15)
+        db.commit()
 
-    import random
-    code = f"{random.randint(100000, 999999)}"
+        from .services.email import send_reset_code
+        send_reset_code(req.email, code)
 
-    farmer.reset_code = code
-    farmer.reset_expires = datetime.utcnow() + timedelta(minutes=15)
-    db.commit()
-
-    from .services.email import send_reset_code
-    send_reset_code(req.email, code)
-
-    return {"message": "Reset code sent to your email."}
+    return {"message": "If that email is registered, a reset code has been sent."}
 
 @app.post("/auth/reset-password")
 def reset_password(req: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
@@ -506,12 +511,6 @@ def list_weather_readings(
     if not crud.get_field_for_farmer(db, field_id, farmer.id):
         raise HTTPException(status_code=404, detail="Field not found")
     return crud.get_weather_readings(db, field_id, start, end, limit)
-
-# Admin/simulator endpoint (kept unprotected for internal use)
-@app.post("/admin/create_field")
-def admin_create_field(farmer_id: str, field_id: str, db: Session = Depends(get_db)):
-    field = crud.ensure_farmer_field(db, farmer_id, field_id)
-    return {"status": "ok", "field_id": field.id}
 
 # --- Sensor Management Endpoints (Protected) ---
 
