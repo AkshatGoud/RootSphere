@@ -138,7 +138,8 @@ export const fieldsApi = {
   get: (fieldId: string): Promise<Field> =>
     request<Field>(`/fields/${fieldId}`),
 
-  getByFarmer: (_farmerId?: string): Promise<Field[]> =>
+  /** List the authenticated farmer's fields. The backend infers the farmer from the JWT. */
+  list: (): Promise<Field[]> =>
     request<Field[]>(`/fields`),
 
   update: (fieldId: string, data: FieldUpdate): Promise<Field> =>

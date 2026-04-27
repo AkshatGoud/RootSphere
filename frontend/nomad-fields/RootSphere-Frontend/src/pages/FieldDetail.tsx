@@ -123,10 +123,7 @@ export default function FieldDetail() {
         snapshotApi.getLatest(fieldId),
       ]);
       setField(fieldData);
-      setSnapshot({
-        ...snapshotData,
-        field_name: fieldData.name,
-      });
+      setSnapshot(snapshotData);
     } catch (err) {
       setError(t("Failed to load field data. Please try again."));
     } finally {
@@ -236,7 +233,7 @@ export default function FieldDetail() {
           </a>
           <span className="mx-2">/</span>
           <span className="text-slate-900 dark:text-white font-semibold">
-            {t(snapshot.field_name || '')}
+            {field?.name || ''}
           </span>
         </nav>
 
@@ -244,7 +241,7 @@ export default function FieldDetail() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div className="flex flex-col gap-1">
             <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              {t(snapshot.field_name || '')}
+              {field?.name || ''}
             </h1>
             {/* Fix 12: Field metadata with crop icon + color-coded stage badge */}
             <div className="flex items-center gap-2 flex-wrap text-slate-500 dark:text-slate-400">
@@ -641,7 +638,7 @@ export default function FieldDetail() {
               {t('Delete this field?')}
             </DialogTitle>
             <DialogDescription className="text-center text-slate-500 dark:text-slate-400 pt-2">
-              {t('This will permanently delete')} <span className="font-semibold text-slate-700 dark:text-slate-300">{snapshot?.field_name}</span> {t('and all its data — sensor readings, weather history, images, and recommendations. This cannot be undone.')}
+              {t('This will permanently delete')} <span className="font-semibold text-slate-700 dark:text-slate-300">{field?.name}</span> {t('and all its data — sensor readings, weather history, images, and recommendations. This cannot be undone.')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0 mt-4">

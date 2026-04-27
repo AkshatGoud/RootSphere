@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/select";
 import { sensorsApi, fieldsApi } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
 import type { Sensor, Field } from "@/types/api";
 import { toast } from "sonner";
@@ -39,7 +38,6 @@ export default function SensorDetail() {
   const [sensor, setSensor] = useState<Sensor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [setupComplete, setSetupComplete] = useState(false);
-  const { farmerId } = useAuth();
   const { t } = useLanguage();
 
   // Assignment State
@@ -83,10 +81,8 @@ export default function SensorDetail() {
   };
 
   const handleOpenAssign = async () => {
-    if (!farmerId) return;
-
     try {
-      const fieldList = await fieldsApi.getByFarmer(farmerId);
+      const fieldList = await fieldsApi.list();
       setFields(fieldList);
       setIsAssignOpen(true);
     } catch (e) {

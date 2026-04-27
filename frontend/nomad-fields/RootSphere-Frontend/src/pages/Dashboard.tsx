@@ -49,7 +49,7 @@ export default function Dashboard() {
     setIsLoading(true);
     try {
       const [fieldsData, sensorsData] = await Promise.all([
-        fieldsApi.getByFarmer(farmerId!),
+        fieldsApi.list(),
         sensorsApi.list(),
       ]);
       setFields(fieldsData);

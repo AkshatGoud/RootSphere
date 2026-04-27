@@ -51,7 +51,7 @@ export default function FieldsList() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fieldsApi.getByFarmer(farmerId);
+      const data = await fieldsApi.list();
       setFields(data);
     } catch (err) {
       setError(t("Failed to load fields. Please try again."));

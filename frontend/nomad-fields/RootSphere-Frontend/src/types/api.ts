@@ -104,7 +104,8 @@ export interface ImageSummary {
   notes?: string;
 }
 
-// Field Snapshot
+/** Mirrors backend FieldSnapshotV1. Note: does not include the field name —
+ *  consumers fetch the Field separately via fieldsApi.get(). */
 export interface FieldSnapshot {
   field_id: string;
   farmer_id: string;
@@ -119,14 +120,6 @@ export interface FieldSnapshot {
   weather?: WeatherSummary;
   images: ImageSummary[];
   missing_data: string[];
-  field_name?: string; // Derived or fetched separately? Backend snapshot doesn't have field_name. API fetch likely joins it or we have to.
-  // Actually Pydantic FieldSnapshotV1 has field_id but NOT name.
-  // The frontend might need to fetch field details separately or we rely on ID.
-  // Wait, FieldDetail page displays name. `snapshot.field_name` usage. 
-  // We should verify if backend sends name. 
-  // Checked: FieldSnapshotV1 in schemas.py DOES NOT have field_name.
-  // Current frontend assumes it does. This will break Title.
-  // We will fix FieldDetail to use stored name or fetch field.
 }
 
 // Sensor Management
@@ -220,7 +213,13 @@ export interface FeedbackRequest {
   notes?: string;
 }
 
+/** Mirrors backend FeedbackResponse — the persisted record returned by POST /feedback. */
 export interface FeedbackResponse {
-  success: boolean;
-  message: string;
+  id: string;
+  ts: string;
+  field_id: string;
+  recommendation_id: string;
+  followed: boolean;
+  outcome: 'improved' | 'no_change' | 'worse';
+  notes?: string;
 }
