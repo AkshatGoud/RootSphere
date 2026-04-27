@@ -113,6 +113,103 @@ _groq_load_attempted = False
 _gemini_client = None
 _gemini_load_attempted = False
 
+# --- Local Ollama (Gemma 4) configuration ---
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e2b")
+OLLAMA_TIMEOUT_S = int(os.environ.get("OLLAMA_TIMEOUT_S", "120"))
+
+
+def _analyze_with_ollama(image, crop_name: str, growth_stage: str = "") -> dict | None:
+    """
+    Analyze a crop image with a local multimodal model served by Ollama
+    (default: gemma4:e2b). Returns dict or None on failure.
+
+    No API key, no internet, no third-party costs — all inference runs in
+    the local ollama container alongside the API.
+    """
+    import base64
+    import requests
+
+    try:
+        # Convert PIL Image to base64 (no data: prefix — Ollama expects raw b64)
+        img_buffer = BytesIO()
+        image.save(img_buffer, format="JPEG")
+        b64_image = base64.b64encode(img_buffer.getvalue()).decode()
+
+        user_prompt = (
+            f"The farmer says this is: {crop_name}. First identify what crop/plant is "
+            f"actually in this image, then analyze for diseases, pests, or nutrient deficiencies."
+        )
+        if growth_stage.lower() == "seedling":
+            user_prompt += _SEEDLING_PROMPT_EXTRA
+
+        # Ollama's /api/chat takes images alongside content per message.
+        payload = {
+            "model": OLLAMA_MODEL,
+            "stream": False,
+            "format": "json",  # ask Ollama to constrain to valid JSON output
+            "messages": [
+                {"role": "system", "content": _GEMINI_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": user_prompt,
+                    "images": [b64_image],
+                },
+            ],
+            "options": {
+                "temperature": 0.2,
+                "num_predict": 512,
+            },
+        }
+
+        resp = requests.post(
+            f"{OLLAMA_HOST}/api/chat",
+            json=payload,
+            timeout=OLLAMA_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+
+        raw_text = (body.get("message") or {}).get("content", "").strip()
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("\n", 1)[-1]
+            if raw_text.endswith("```"):
+                raw_text = raw_text[:-3].strip()
+
+        result = json.loads(raw_text)
+
+        detected_crop = result.get("detected_crop")
+        detected = result.get("detected_issue")
+        confidence = max(0.0, min(1.0, float(result.get("confidence", 0.5))))
+        severity = result.get("severity", "medium")
+        treatment = result.get("treatment")
+
+        valid_severities = {"none", "low", "medium", "high", "critical"}
+        if severity not in valid_severities:
+            severity = "medium"
+
+        if detected and not treatment:
+            crop_key = _normalize_crop_key(crop_name)
+            treatment = _find_treatment(detected, crop_key)
+
+        logger.info(
+            f"Ollama ({OLLAMA_MODEL}) analysis: crop={detected_crop}, "
+            f"issue={detected}, confidence={confidence}, severity={severity}"
+        )
+        return {
+            "source": "ollama",
+            "model": OLLAMA_MODEL,
+            "detected_crop": detected_crop,
+            "detected_issue": detected,
+            "treatment": treatment,
+            "confidence": confidence,
+            "severity": severity,
+        }
+
+    except Exception as e:
+        logger.warning(f"Ollama analysis failed ({OLLAMA_MODEL} at {OLLAMA_HOST}): {e}")
+        return None
+
 
 def _get_gemini_client():
     """Lazy-load the Gemini API client."""
@@ -239,19 +336,23 @@ def _keyword_fallback(image_url: str, notes: str, crop_name: str) -> dict:
                 break
 
     if detected:
+        # NOT actual image analysis — keyword match against the notes / URL.
+        # Use a low-to-mid confidence to reflect that we never looked at pixels.
         return {
+            "source": "keyword",
             "detected_crop": None,
             "detected_issue": detected["issue"],
             "treatment": detected["treatment"],
-            "confidence": 0.85 + (0.10 * random.random()),
+            "confidence": 0.40 + (0.10 * random.random()),
             "severity": detected["severity"]
         }
 
     return {
+        "source": "keyword",
         "detected_crop": None,
         "detected_issue": None,
         "treatment": None,
-        "confidence": 0.95,
+        "confidence": 0.20,
         "severity": "none"
     }
 
@@ -594,7 +695,7 @@ def analyze_crop_image(image_url: str, notes: str = "", crop_name: str = "paddy"
     Returns:
         dict: {detected_issue, treatment, confidence, severity}
     """
-    # Try to download the image (needed by both Gemini and HuggingFace)
+    # Try to download the image
     image = None
     try:
         image = _download_image(image_url)
@@ -602,27 +703,32 @@ def analyze_crop_image(image_url: str, notes: str = "", crop_name: str = "paddy"
         logger.warning(f"Image download failed ({e}), using keyword fallback.")
         return _keyword_fallback(image_url, notes, crop_name)
 
-    # Level 1: Gemini Vision API (free)
+    # Level 1: Local Ollama (Gemma 4 multimodal, primary path — no API, no internet)
+    result = _analyze_with_ollama(image, crop_name, growth_stage)
+    if result is not None:
+        return result
+
+    # Level 2: Gemini Vision API (free, online fallback)
     result = _analyze_with_gemini(image, crop_name, growth_stage)
     if result is not None:
         return result
 
-    # Level 2: Groq - Llama 4 Scout (free)
+    # Level 3: Groq Llama 4 Scout (free, online fallback)
     result = _analyze_with_groq(image, crop_name, growth_stage)
     if result is not None:
         return result
 
-    # Level 3: OpenAI GPT-4o-mini (paid)
+    # Level 4: OpenAI GPT-4o-mini (paid)
     result = _analyze_with_openai(image, crop_name, growth_stage)
     if result is not None:
         return result
 
-    # Level 4: HuggingFace model (local)
+    # Level 5: HuggingFace pretrained CNN (local PlantVillage)
     result = _analyze_with_huggingface(image, crop_name)
     if result is not None:
         return result
 
-    # Level 5: Keyword fallback
+    # Level 6: Keyword fallback (NOT image analysis — searches notes/URL for symptom words)
     logger.info("All vision models unavailable, using keyword fallback.")
     return _keyword_fallback(image_url, notes, crop_name)
 

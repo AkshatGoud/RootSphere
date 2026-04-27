@@ -7,11 +7,23 @@ services:
       - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/smartsoil
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=gemma4:e2b
     depends_on:
       db:
         condition: service_healthy
+      ollama:
+        condition: service_started
     volumes:
       - ./backend:/app
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
     restart: unless-stopped
 
   db:
@@ -48,3 +60,4 @@ services:
 
 volumes:
   postgres_data:
+  ollama_data:
