@@ -36,7 +36,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
 
   const { farmerId, farmerName } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   useEffect(() => {
     if (!farmerId) {
@@ -80,12 +80,12 @@ export default function Dashboard() {
   const forecast = snapshot?.weather?.forecast_72h || [];
 
   const chartData = forecast.map((point) => ({
-    time: new Date(point.ts).toLocaleString("en", { weekday: "short", hour: "numeric" }),
+    time: new Date(point.ts).toLocaleString(language, { weekday: "short", hour: "numeric" }),
     temp_c: point.temp_c,
     rainfall_mm: point.rainfall_mm,
   }));
 
-  const today = new Date().toLocaleDateString("en-US", {
+  const today = new Date().toLocaleDateString(language, {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -404,7 +404,7 @@ export default function Dashboard() {
 
       {/* Footer */}
       <footer className="hidden md:flex items-center justify-between px-8 py-4 border-t border-slate-200 dark:border-slate-800 mt-auto">
-        <span className="text-xs text-slate-400">© 2026 RootSphere AI. All rights reserved.</span>
+        <span className="text-xs text-slate-400">© {new Date().getFullYear()} RootSphere AI. All rights reserved.</span>
         <div className="flex items-center gap-6 text-xs text-slate-400">
           <a href="#" className="hover:text-slate-600 transition-colors">{t("Privacy Policy")}</a>
           <a href="#" className="hover:text-slate-600 transition-colors">{t("Terms of Service")}</a>

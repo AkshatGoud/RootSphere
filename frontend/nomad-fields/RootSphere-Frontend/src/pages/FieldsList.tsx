@@ -340,7 +340,7 @@ export default function FieldsList() {
                       </div>
 
                       <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">
-                        {t(field.name)}
+                        {field.name}
                       </h3>
                       {field.name.toLowerCase() !== field.crop.toLowerCase() && (
                         <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-4">
@@ -404,7 +404,7 @@ export default function FieldsList() {
                         </span>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-slate-900 dark:text-white truncate">{t(field.name)}</p>
+                        <p className="font-semibold text-slate-900 dark:text-white truncate">{field.name}</p>
                         {field.name.toLowerCase() !== field.crop.toLowerCase() && (
                           <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{t(field.crop)}</p>
                         )}

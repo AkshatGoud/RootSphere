@@ -258,7 +258,6 @@
   "Analysis Failed": "Analysis Failed",
   "Could not generate recommendation": "Could not generate recommendation",
   "Live": "Live",
-  "Generated on ": "Generated on ",
   "Share": "Share",
   "Export PDF": "Export PDF",
   "Action Required": "Action Required",
@@ -379,7 +378,7 @@
   "Care tips for this growth stage": "Care tips for this growth stage",
   "stageTip.seedling.watering": "Keep soil consistently moist. Avoid waterlogging for non-rice crops.",
   "stageTip.seedling.thinning": "Thin to recommended spacing once seedlings have 2-3 true leaves.",
-  "stageTip.seedling.protection": "Use mulch or shade cloth if temperatures exceed 35\u00b0C.",
+  "stageTip.seedling.protection": "Use mulch or shade cloth if temperatures exceed 35°C.",
   "stageTip.seedling.watchFor": "Watch for: Damping-off disease, cutworms, bird damage.",
   "stageTip.seedling.nextStage": "Expect transition to Vegetative in ~2-3 weeks.",
   "stageTip.vegetative.fertilizer": "Apply nitrogen top-dressing in splits for steady growth.",
@@ -397,7 +396,6 @@
   "stageTip.harvest.timing": "Harvest at the right moisture level to minimize losses.",
   "stageTip.harvest.soilRecovery": "Consider cover crops or green manure for soil recovery.",
   "stageTip.harvest.storage": "Store produce in dry, ventilated conditions to prevent spoilage.",
-  "Register": "Register",
   "Ready": "Ready",
   "Setup Complete!": "Setup Complete!",
   "Your sensor is now active and connected. Try simulating data to test the integration.": "Your sensor is now active and connected. Try simulating data to test the integration.",
@@ -425,5 +423,8 @@
   "Additional Info": "Additional Info",
   "Data Confidence": "Data Confidence",
   "Sources Used": "Sources Used",
-  "Forecast": "Forecast"
+  "Forecast": "Forecast",
+  "Good morning": "Good morning",
+  "Good afternoon": "Good afternoon",
+  "Good evening": "Good evening"
 }

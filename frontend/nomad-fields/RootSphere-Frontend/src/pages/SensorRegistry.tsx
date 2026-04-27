@@ -350,7 +350,7 @@ export default function SensorRegistry() {
                       {/* Assignment */}
                       <span className="text-sm">
                         {sensor.current_assignment?.field_name ? (
-                          <span className="text-primary font-medium">{t(sensor.current_assignment.field_name)}</span>
+                          <span className="text-primary font-medium">{sensor.current_assignment.field_name}</span>
                         ) : (
                           <span className="text-amber-500 italic">{t("Unassigned")}</span>
                         )}

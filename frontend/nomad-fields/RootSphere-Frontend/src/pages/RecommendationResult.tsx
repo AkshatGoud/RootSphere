@@ -53,7 +53,7 @@ export default function RecommendationResult() {
   const [showFeedbackReason, setShowFeedbackReason] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   useEffect(() => {
     if (fieldId) {
@@ -169,7 +169,7 @@ export default function RecommendationResult() {
               <span className="flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide">
                 <span className="material-symbols-outlined text-[14px]">check_circle</span> {t("Live")}
               </span>
-              <span>{t("Generated on ")}{new Date(recommendation.ts).toLocaleString()}</span>
+              <span>{t("Generated on")} {new Date(recommendation.ts).toLocaleString(language)}</span>
             </div>
           </div>
           <div className="flex gap-3">
