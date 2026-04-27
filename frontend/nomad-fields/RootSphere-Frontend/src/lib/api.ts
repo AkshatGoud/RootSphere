@@ -170,6 +170,45 @@ export const snapshotApi = {
     }),
 };
 
+// Time-series readings (sensor + weather) for charts
+export interface SensorReadingPoint {
+  field_id: string;
+  ts: string;
+  moisture: number;
+  ph: number;
+  n: number;
+  p: number;
+  k: number;
+}
+
+export interface WeatherReadingPoint {
+  id: string;
+  field_id: string;
+  ts: string;
+  temp_c: number;
+  humidity_pct: number;
+  rainfall_mm: number;
+}
+
+export const readingsApi = {
+  /** List sensor readings for a field, ordered newest-first. Defaults to last 7 days. */
+  listSensor: (fieldId: string, opts?: { start?: string; end?: string; limit?: number }): Promise<SensorReadingPoint[]> => {
+    const params = new URLSearchParams({ field_id: fieldId });
+    if (opts?.start) params.set("start", opts.start);
+    if (opts?.end) params.set("end", opts.end);
+    if (opts?.limit != null) params.set("limit", String(opts.limit));
+    return request<SensorReadingPoint[]>(`/sensor_readings?${params.toString()}`);
+  },
+  /** List weather readings for a field. Defaults to last 7 days. */
+  listWeather: (fieldId: string, opts?: { start?: string; end?: string; limit?: number }): Promise<WeatherReadingPoint[]> => {
+    const params = new URLSearchParams({ field_id: fieldId });
+    if (opts?.start) params.set("start", opts.start);
+    if (opts?.end) params.set("end", opts.end);
+    if (opts?.limit != null) params.set("limit", String(opts.limit));
+    return request<WeatherReadingPoint[]>(`/weather_readings?${params.toString()}`);
+  },
+};
+
 // Recommendation APIs
 export const recommendationApi = {
   /** Returns the most recent recommendation if younger than max_age_minutes,

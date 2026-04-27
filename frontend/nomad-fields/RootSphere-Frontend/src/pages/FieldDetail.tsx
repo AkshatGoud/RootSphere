@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { SoilSensorCard } from "@/components/SoilSensorCard";
 import { WeatherCard } from "@/components/WeatherCard";
+import { SensorHistoryCard } from "@/components/SensorHistoryCard";
 import { EditFieldDialog } from "@/components/EditFieldDialog";
 import { AddImageDialog } from "@/components/AddImageDialog";
 import { AppLayout } from "@/components/AppLayout";
@@ -566,6 +567,11 @@ export default function FieldDetail() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Sensor history chart — full-width below the snapshot grid */}
+        <div className="mb-10">
+          <SensorHistoryCard fieldId={fieldId!} />
         </div>
       </main>
 
