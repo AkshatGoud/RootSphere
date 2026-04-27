@@ -1,17 +1,31 @@
 __pycache__/
 *.pyc
-.env
 venv/
 env/
 .DS_Store
 postgres_data/
 dist/
+dist-ssr/
 build/
 *.egg-info/
 .idea/
 .vscode/
 
+# Node
+node_modules/
+
+# Env files (frontend/.env is intentionally tracked - only contains public values)
+/.env
+backend/.env
+
 # Ignore local db data
 backend/db_data/
 backend/dev.db
 Review 1/
+
+# ML artifacts (large binary files, regenerated per-field)
+backend/api/ml/models/*.pth
+backend/api/ml/models/*.joblib
+
+# Uploaded user content
+backend/uploads/

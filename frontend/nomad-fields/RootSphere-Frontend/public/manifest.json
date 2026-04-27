@@ -1,0 +1,16 @@
+{
+  "name": "RootSphere AI",
+  "short_name": "RootSphere",
+  "description": "AI-powered smart farming platform — monitor fields, sensors, weather, and get crop recommendations",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f8f7",
+  "theme_color": "#13ec6d",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
