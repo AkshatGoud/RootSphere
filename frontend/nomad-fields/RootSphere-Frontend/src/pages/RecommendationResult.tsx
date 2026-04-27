@@ -43,6 +43,60 @@ const CATEGORY_ICON_COLOR: Record<string, string> = {
 
 const CATEGORY_ORDER = ['risk', 'irrigation', 'fertilizer', 'soil', 'image', 'weather', 'info'] as const;
 
+/** Staged loading screen shown while a recommendation is being generated.
+ *  Image AI inference can take 60+ seconds on CPU; a single static "loading"
+ *  message feels broken at that length. We narrate progress through 4 stages
+ *  on a fixed schedule. The actual API call resolves in parallel — the
+ *  staging is purely cosmetic but converts a frozen wait into perceived
+ *  progress. */
+function RecommendationLoadingState() {
+  const { t } = useLanguage();
+  const stages = [
+    { delay: 0, icon: "sensors", label: t("Loading sensor readings…") },
+    { delay: 1500, icon: "rainy", label: t("Running rainfall prediction…") },
+    { delay: 4000, icon: "psychology", label: t("Analyzing field photo with AI…") },
+    { delay: 30000, icon: "auto_awesome", label: t("Generating recommendation…") },
+  ];
+  const [stageIdx, setStageIdx] = useState(0);
+
+  useEffect(() => {
+    const timers = stages.map((s, i) =>
+      setTimeout(() => setStageIdx(i), s.delay),
+    );
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const current = stages[stageIdx];
+
+  return (
+    <div className="min-h-screen bg-background-light dark:bg-background-dark font-display flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-6 animate-pulse">
+        <span className="material-symbols-outlined text-4xl text-primary">{current.icon}</span>
+      </div>
+      <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+        {t("Analyzing Field Data")}
+      </h2>
+      <p className="text-slate-600 dark:text-slate-400 mb-6 max-w-sm mx-auto min-h-[24px]">
+        {current.label}
+      </p>
+      <div className="flex items-center gap-2">
+        {stages.map((_, i) => (
+          <div
+            key={i}
+            className={`h-1.5 w-8 rounded-full transition-colors ${
+              i <= stageIdx ? "bg-primary" : "bg-slate-200 dark:bg-slate-700"
+            }`}
+          />
+        ))}
+      </div>
+      <p className="text-xs text-slate-400 dark:text-slate-500 mt-6 max-w-sm mx-auto">
+        {t("First analysis can take up to a minute. Subsequent runs are cached and load instantly.")}
+      </p>
+    </div>
+  );
+}
+
 export default function RecommendationResult() {
   const { fieldId } = useParams<{ fieldId: string }>();
   const navigate = useNavigate();
@@ -131,17 +185,7 @@ export default function RecommendationResult() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark font-display flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-6 animate-pulse">
-          <span className="material-symbols-outlined text-4xl text-primary">psychology</span>
-        </div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{t("Analyzing Field Data")}</h2>
-        <p className="text-slate-500 mb-6 max-w-sm mx-auto">
-          {t("AI is processing sensor readings, weather patterns, and soil conditions...")}
-        </p>
-      </div>
-    );
+    return <RecommendationLoadingState />;
   }
 
   if (error || !recommendation) {

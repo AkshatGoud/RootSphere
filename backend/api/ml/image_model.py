@@ -689,11 +689,30 @@ def _analyze_with_huggingface(image, crop_name: str) -> dict | None:
         return None
 
 
+# In-memory cache for image analysis results — keyed by hash of image content
+# + crop + stage. Avoids re-running expensive vision inference when the same
+# image is analyzed again (e.g. clicking "Generate Recommendation" twice on
+# the same field). Resets on api restart, which is fine for a demo.
+_analysis_cache: dict[str, dict] = {}
+_ANALYSIS_CACHE_MAX = 256  # cap so memory doesn't grow unbounded
+
+
+def _cache_key(image_url: str, crop_name: str, growth_stage: str) -> str:
+    """Stable cache key over image content + context. Uses sha256 of the
+    image_url string (which already contains the full base64 data for uploads,
+    or a unique URL for remote)."""
+    import hashlib
+    payload = f"{image_url}|{crop_name.lower()}|{growth_stage.lower()}".encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
 def analyze_crop_image(image_url: str, notes: str = "", crop_name: str = "paddy", growth_stage: str = "") -> dict:
     """
     Analyze a crop image for disease detection.
 
-    Fallback chain: Gemini Vision API → HuggingFace model → keyword matching.
+    Fallback chain: Ollama (local) → Gemini → Groq → OpenAI → HuggingFace → keyword.
+    Caches results in-process to avoid re-running expensive vision inference
+    on the same image.
 
     Args:
         image_url: URL of input image
@@ -702,44 +721,62 @@ def analyze_crop_image(image_url: str, notes: str = "", crop_name: str = "paddy"
         growth_stage: The current growth stage (e.g. 'seedling', 'vegetative')
 
     Returns:
-        dict: {detected_issue, treatment, confidence, severity}
+        dict: {detected_issue, treatment, confidence, severity, source, ...}
     """
+    # Check cache first
+    cache_key = _cache_key(image_url, crop_name, growth_stage)
+    cached = _analysis_cache.get(cache_key)
+    if cached is not None:
+        logger.info(f"Image analysis cache HIT (key={cache_key[:8]}...) — skipping inference")
+        # Mark the cached result so callers can tell it was cached.
+        return {**cached, "cached": True}
+
     # Try to download the image
     image = None
     try:
         image = _download_image(image_url)
     except Exception as e:
         logger.warning(f"Image download failed ({e}), using keyword fallback.")
-        return _keyword_fallback(image_url, notes, crop_name)
+        result = _keyword_fallback(image_url, notes, crop_name)
+        _analysis_cache[cache_key] = result
+        return result
 
-    # Level 1: Local Ollama (Gemma 4 multimodal, primary path — no API, no internet)
+    def _cache_and_return(result: dict) -> dict:
+        # Drop oldest entries when over cap (FIFO; cheap, dict preserves insertion order).
+        if len(_analysis_cache) >= _ANALYSIS_CACHE_MAX:
+            for old_key in list(_analysis_cache.keys())[: len(_analysis_cache) - _ANALYSIS_CACHE_MAX + 1]:
+                del _analysis_cache[old_key]
+        _analysis_cache[cache_key] = result
+        return result
+
+    # Level 1: Local Ollama (multimodal, primary path — no API, no internet)
     result = _analyze_with_ollama(image, crop_name, growth_stage)
     if result is not None:
-        return result
+        return _cache_and_return(result)
 
     # Level 2: Gemini Vision API (free, online fallback)
     result = _analyze_with_gemini(image, crop_name, growth_stage)
     if result is not None:
-        return result
+        return _cache_and_return(result)
 
     # Level 3: Groq Llama 4 Scout (free, online fallback)
     result = _analyze_with_groq(image, crop_name, growth_stage)
     if result is not None:
-        return result
+        return _cache_and_return(result)
 
     # Level 4: OpenAI GPT-4o-mini (paid)
     result = _analyze_with_openai(image, crop_name, growth_stage)
     if result is not None:
-        return result
+        return _cache_and_return(result)
 
     # Level 5: HuggingFace pretrained CNN (local PlantVillage)
     result = _analyze_with_huggingface(image, crop_name)
     if result is not None:
-        return result
+        return _cache_and_return(result)
 
     # Level 6: Keyword fallback (NOT image analysis — searches notes/URL for symptom words)
     logger.info("All vision models unavailable, using keyword fallback.")
-    return _keyword_fallback(image_url, notes, crop_name)
+    return _cache_and_return(_keyword_fallback(image_url, notes, crop_name))
 
 
 def get_treatment_for_issue(issue: str, crop_name: str = "") -> str:
