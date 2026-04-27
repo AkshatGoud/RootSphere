@@ -131,9 +131,18 @@ def _analyze_with_ollama(image, crop_name: str, growth_stage: str = "") -> dict 
     import requests
 
     try:
-        # Convert PIL Image to base64 (no data: prefix — Ollama expects raw b64)
+        # Resize the image to a reasonable size before encoding. CPU vision
+        # inference scales with pixels, and a 3000+px panorama can push a
+        # 4B-param model past 2 minutes. 768px on the long side is plenty
+        # for disease detection (Gemma's vision tower processes at 768x768
+        # internally anyway).
+        max_side = 768
+        if image.size[0] > max_side or image.size[1] > max_side:
+            image = image.copy()
+            image.thumbnail((max_side, max_side))
+
         img_buffer = BytesIO()
-        image.save(img_buffer, format="JPEG")
+        image.save(img_buffer, format="JPEG", quality=85)
         b64_image = base64.b64encode(img_buffer.getvalue()).decode()
 
         user_prompt = (
