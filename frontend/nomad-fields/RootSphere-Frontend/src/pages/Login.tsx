@@ -237,7 +237,7 @@ const Login = () => {
                     </p>
 
                     <div className="mt-8 text-center text-xs text-gray-400">
-                        <p>© 2026 RootSphere AI Inc. All rights reserved.</p>
+                        <p>© {new Date().getFullYear()} RootSphere AI Inc. All rights reserved.</p>
                     </div>
                 </div>
             </div>

@@ -6,14 +6,21 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
 from datetime import datetime, timedelta
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 from .services.weather_ml import weather_ml_service
 from .services.auth import get_current_farmer
+from .services.email import send_reset_code
+from .ml.image_model import analyze_crop_image
 
+import base64
+import csv
 import time
 import uuid
 import json
 import logging
 import os
+import random
 
 from . import crud, models, schemas, recommendation
 from .services import weather as weather_service
@@ -128,9 +135,6 @@ def login_oauth2(form_data: OAuth2PasswordRequestForm = Depends(), db: Session =
 
 @app.post("/auth/google", response_model=schemas.Token)
 def google_login(payload: schemas.GoogleAuthRequest, db: Session = Depends(get_db)):
-    from google.oauth2 import id_token as google_id_token
-    from google.auth.transport import requests as google_requests
-
     google_client_id = os.getenv("GOOGLE_CLIENT_ID")
     if not google_client_id:
         raise HTTPException(status_code=500, detail="Google SSO not configured")
@@ -163,13 +167,10 @@ def forgot_password(req: schemas.ForgotPasswordRequest, db: Session = Depends(ge
     # to prevent enumeration of valid accounts.
     farmer = crud.get_farmer_by_email(db, req.email)
     if farmer:
-        import random
         code = f"{random.randint(100000, 999999)}"
         farmer.reset_code = code
         farmer.reset_expires = datetime.utcnow() + timedelta(minutes=15)
         db.commit()
-
-        from .services.email import send_reset_code
         send_reset_code(req.email, code)
 
     return {"message": "If that email is registered, a reset code has been sent."}
@@ -316,7 +317,6 @@ async def upload_image_file(
     if file.content_type not in allowed:
         raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed")
 
-    import base64
     contents = await file.read()
 
     # Store as base64 data URL in DB (Render's free tier disk is ephemeral, so
@@ -355,9 +355,6 @@ async def analyze_image(
     Test image analysis directly. Upload a photo and optionally specify crop_name.
     Returns the raw AI analysis result.
     """
-    from .ml.image_model import analyze_crop_image
-    import base64
-
     allowed = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
     if file.content_type not in allowed:
         raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed")
@@ -612,7 +609,6 @@ def _load_crop_data() -> dict:
     """Load crop_recommendation.csv once, return {label: list_of_row_dicts}."""
     if _crop_data_cache:
         return _crop_data_cache
-    import csv
     csv_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "data", "crop_recommendation.csv")
     with open(csv_path, newline="") as f:
         reader = csv.DictReader(f)
@@ -631,8 +627,6 @@ def _load_crop_data() -> dict:
 
 @app.post("/sensors/{sensor_id}/simulate", response_model=schemas.SensorSummary)
 def simulate_sensor_data(sensor_id: str, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
-    import random
-
     sensor = crud.get_sensor(db, sensor_id, farmer_id=farmer.id)
     if not sensor:
         raise HTTPException(status_code=404, detail="Sensor not found")

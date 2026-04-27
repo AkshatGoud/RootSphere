@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from . import models, schemas
+from .services import auth
 from datetime import datetime, timedelta
 
 # --- Ingestion ---
@@ -32,8 +33,6 @@ def create_recommendation(db: Session, rec_data: dict):
     db.commit()
     db.refresh(db_rec)
     return db_rec
-
-from .services import auth
 
 def create_farmer(db: Session, farmer: schemas.FarmerCreate):
     hashed_pwd = auth.get_password_hash(farmer.password)

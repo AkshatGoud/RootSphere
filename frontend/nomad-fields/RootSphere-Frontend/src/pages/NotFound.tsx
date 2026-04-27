@@ -72,7 +72,7 @@ const NotFound = () => {
 
       {/* Footer */}
       <footer className="py-6 text-center text-sm text-slate-400 dark:text-slate-500">
-        <p>&copy; 2026 RootSphere AI. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} RootSphere AI. All rights reserved.</p>
       </footer>
     </div>
   );

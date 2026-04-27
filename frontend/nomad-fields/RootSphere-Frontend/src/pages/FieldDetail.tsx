@@ -82,12 +82,11 @@ const STAGE_TIPS: Record<string, { icon: string; tips: string[] }> = {
   },
 };
 
+// Backend's ImageCreate schema only emits 'phone' or 'drone' (see schemas.py).
 const getSourceBadge = (source: string): { icon: string; label: string } => {
   switch (source?.toLowerCase()) {
-    case 'mobile': return { icon: 'smartphone', label: 'Mobile' };
+    case 'phone': return { icon: 'smartphone', label: 'Phone' };
     case 'drone': return { icon: 'flight', label: 'Drone' };
-    case 'satellite': return { icon: 'satellite_alt', label: 'Satellite' };
-    case 'webcam': return { icon: 'videocam', label: 'Webcam' };
     default: return { icon: 'photo_camera', label: 'Photo' };
   }
 };
