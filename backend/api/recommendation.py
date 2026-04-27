@@ -3,21 +3,85 @@ from . import schemas
 from typing import List, Optional
 
 # --- Crop Name Normalization ---
-# Maps all known variants to canonical lowercase name matching our thresholds/standards
+# Maps regional/vernacular variants (Hindi, Tamil, Telugu, common trade names)
+# to a canonical lowercase key that the rest of the engine works against.
+# Add lowercase ASCII transliterations alongside native scripts so users can
+# type either way.
 _CROP_NAME_MAP = {
+    # rice / paddy
     "rice": "rice",
     "paddy": "rice",
     "paddy (rice)": "rice",
+    "chawal": "rice",        # Hindi
+    "dhan": "rice",           # Hindi (paddy)
+    "chaval": "rice",
+    "arisi": "rice",          # Tamil
+    "nellu": "rice",          # Tamil/Malayalam
+    "biyyam": "rice",         # Telugu
+    "vari": "rice",           # Marathi/Konkani
+    "धान": "rice",
+    "चावल": "rice",
+    "அரிசி": "rice",
+    "நெல்": "rice",
+    "బియ్యం": "rice",
+    "వరి": "rice",
+
+    # wheat
     "wheat": "wheat",
+    "gehu": "wheat",          # Hindi
+    "gehoon": "wheat",
+    "godhumai": "wheat",      # Tamil
+    "godumalu": "wheat",      # Telugu
+    "गेहूँ": "wheat",
+    "गेहू": "wheat",
+    "கோதுமை": "wheat",
+    "గోధుమలు": "wheat",
+
+    # maize / corn
     "maize": "maize",
     "corn": "maize",
+    "makka": "maize",         # Hindi
+    "makka cholam": "maize",  # Tamil — literally "corn-sorghum"
+    "makka jola": "maize",    # Kannada/Telugu
+    "mokka jonna": "maize",   # Telugu
+    "मक्का": "maize",
+    "மக்காச்சோளம்": "maize",
+    "మొక్కజొన్న": "maize",
+
+    # cotton
     "cotton": "cotton",
+    "kapas": "cotton",        # Hindi
+    "panju": "cotton",        # Tamil
+    "patti": "cotton",        # Telugu
+    "कपास": "cotton",
+    "பஞ்சு": "cotton",
+    "ప్రత్తి": "cotton",
+
+    # groundnut / peanut
     "groundnut": "groundnut",
     "peanut": "groundnut",
     "groundnut (peanut)": "groundnut",
+    "moongphali": "groundnut",   # Hindi
+    "mungfali": "groundnut",
+    "verkadalai": "groundnut",   # Tamil — literally "root-pulse"
+    "nilakkadalai": "groundnut", # Tamil
+    "veru senaga": "groundnut",  # Telugu
+    "palli": "groundnut",        # Telugu (regional)
+    "मूँगफली": "groundnut",
+    "वेर்க்கடலை": "groundnut",
+    "வேர்க்கடலை": "groundnut",
+    "నిలక్కడలై": "groundnut",
+    "వేరుసెనగ": "groundnut",
+
+    # sorghum / jowar
     "sorghum": "sorghum",
-    "cholam": "sorghum",
+    "jowar": "sorghum",       # Hindi/Marathi
+    "jonna": "sorghum",       # Telugu
+    "cholam": "sorghum",      # Tamil
     "cholam (sorghum)": "sorghum",
+    "ज्वार": "sorghum",
+    "சோளம்": "sorghum",
+    "జొన్న": "sorghum",
 }
 
 def _normalize_crop(raw_crop: str) -> str:
