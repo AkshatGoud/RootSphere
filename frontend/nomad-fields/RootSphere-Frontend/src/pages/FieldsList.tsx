@@ -1,41 +1,13 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { fieldsApi, snapshotApi } from "@/lib/api";
-import { storage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/hooks/useAuth";
+import { AppLayout } from "@/components/AppLayout";
+import { getStageColors, getCropIcon } from "@/constants/crops";
 import type { Field, FieldSnapshot } from "@/types/api";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ThemeToggle } from "@/components/ThemeToggle";
-
-const LANG_OPTIONS = [
-  { code: 'en' as const, label: '🇺🇸 English' },
-  { code: 'hi' as const, label: '🇮🇳 हिंदी' },
-  { code: 'te' as const, label: '🇮🇳 తెలుగు' },
-  { code: 'ta' as const, label: '🇮🇳 தமிழ்' },
-];
-
-const GROWTH_STAGE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  seedling: { bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-700 dark:text-green-400', border: 'border-green-200 dark:border-green-800' },
-  vegetative: { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-700 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800' },
-  flowering: { bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-700 dark:text-purple-400', border: 'border-purple-200 dark:border-purple-800' },
-  fruiting: { bg: 'bg-rose-50 dark:bg-rose-900/20', text: 'text-rose-700 dark:text-rose-400', border: 'border-rose-200 dark:border-rose-800' },
-  harvest: { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800' },
-  mature: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-400', border: 'border-slate-300 dark:border-slate-700' },
-};
-
-const CROP_ICONS: Record<string, string> = {
-  rice: 'rice_bowl',
-  wheat: 'grain',
-  cotton: 'filter_vintage',
-  maize: 'grass',
-  groundnut: 'spa',
-  sorghum: 'grain',
-};
-
-const getStageColors = (stage: string) => GROWTH_STAGE_COLORS[stage.toLowerCase()] || GROWTH_STAGE_COLORS.seedling;
-const getCropIcon = (crop: string) => CROP_ICONS[crop.toLowerCase()] || 'agriculture';
 
 export default function FieldsList() {
   const navigate = useNavigate();
@@ -49,9 +21,8 @@ export default function FieldsList() {
   const [snapshots, setSnapshots] = useState<Record<string, FieldSnapshot>>({});
   const [snapshotsLoading, setSnapshotsLoading] = useState(false);
 
-  const farmerName = localStorage.getItem("farmer_name") || "Farmer";
-  const farmerId = storage.getFarmerId();
-  const { language, setLanguage, t } = useLanguage();
+  const { farmerId } = useAuth();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (!farmerId) {
@@ -89,13 +60,6 @@ export default function FieldsList() {
     }
   };
 
-  const handleLogout = () => {
-    storage.clearAll();
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("farmer_name");
-    navigate("/");
-  };
-
   const uniqueCrops = [...new Set(fields.map(f => f.crop))];
   const uniqueStages = [...new Set(fields.map(f => f.growth_stage))];
 
@@ -120,88 +84,7 @@ export default function FieldsList() {
     });
 
   return (
-    <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col overflow-x-hidden pb-16 md:pb-0">
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark px-6 py-3 shadow-sm">
-        <div className="flex items-center gap-4 cursor-pointer" onClick={() => navigate('/dashboard')}>
-          <div className="size-8 text-primary flex items-center justify-center">
-            <span className="material-symbols-outlined !text-[32px]">spa</span>
-          </div>
-          <h2 className="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">
-            RootSphere AI
-          </h2>
-        </div>
-        {/* Nav Links */}
-        <nav className="hidden md:flex items-center gap-1 ml-6">
-          <button onClick={() => navigate('/dashboard')} className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-primary transition-colors flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[20px]">dashboard</span>
-            {t('Dashboard')}
-          </button>
-          <button onClick={() => navigate('/fields')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-primary transition-colors flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[20px]">spa</span>
-            {t('Fields')}
-          </button>
-          <button onClick={() => navigate('/sensors')} className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-primary transition-colors flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[20px]">sensors</span>
-            {t('Sensors')}
-          </button>
-        </nav>
-        <div className="hidden md:flex flex-1 items-center justify-end gap-6">
-          {/* Search */}
-          <div className="relative w-full max-w-md hidden lg:block">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
-              <span className="material-symbols-outlined">search</span>
-            </div>
-            <input
-              className="block w-full rounded-lg border-0 bg-slate-100 dark:bg-slate-800 py-2 pl-10 pr-3 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-primary sm:text-sm sm:leading-6"
-              placeholder={t("Search fields, crops, or reports...")}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          {/* Actions */}
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            {/* Language Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1 outline-none">
-                  <span className="material-symbols-outlined">translate</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
-                {LANG_OPTIONS.map(opt => (
-                  <DropdownMenuItem
-                    key={opt.code}
-                    onClick={() => setLanguage(opt.code)}
-                    className={`cursor-pointer ${language === opt.code ? 'text-primary font-bold bg-slate-50 dark:bg-slate-700/50' : 'text-slate-700 dark:text-slate-300'
-                      }`}
-                  >
-                    {opt.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <button
-              onClick={handleLogout}
-              className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <span className="material-symbols-outlined">logout</span>
-            </button>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
-            <Link to="/profile" className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-              <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
-                {(farmerName && farmerName.length > 0) ? farmerName.charAt(0).toUpperCase() : "F"}
-              </div>
-              <span className="text-sm font-medium hidden xl:block text-slate-800 dark:text-white">
-                {farmerName}
-              </span>
-            </Link>
-          </div>
-        </div>
-      </header>
-
+    <AppLayout>
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Breadcrumbs */}
         <nav className="flex mb-6 text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -334,6 +217,20 @@ export default function FieldsList() {
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">{t('Soil Moisture')}</p>
               </div>
+            </div>
+
+            {/* Search */}
+            <div className="relative mb-6">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                <span className="material-symbols-outlined">search</span>
+              </div>
+              <input
+                className="block w-full rounded-lg border-0 bg-slate-100 dark:bg-slate-800 py-2.5 pl-10 pr-3 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-primary text-sm"
+                placeholder={t("Search fields, crops, or reports...")}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
 
             {/* Toolbar Row */}
@@ -543,21 +440,6 @@ export default function FieldsList() {
         )}
       </main>
 
-      {/* Mobile Bottom Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-surface-dark border-t border-slate-200 dark:border-slate-800 h-16 flex items-center justify-around px-4 z-50">
-        <button onClick={() => navigate('/dashboard')} className="flex flex-col items-center justify-center gap-1 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
-          <span className="material-symbols-outlined text-[22px]">dashboard</span>
-          <span className="text-xs font-medium">{t('Dashboard')}</span>
-        </button>
-        <button onClick={() => navigate('/fields')} className="flex flex-col items-center justify-center gap-1 text-primary transition-colors">
-          <span className="material-symbols-outlined text-[22px]">spa</span>
-          <span className="text-xs font-medium">{t('Fields')}</span>
-        </button>
-        <button onClick={() => navigate('/sensors')} className="flex flex-col items-center justify-center gap-1 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
-          <span className="material-symbols-outlined text-[22px]">sensors</span>
-          <span className="text-xs font-medium">{t('Sensors')}</span>
-        </button>
-      </div>
-    </div>
+    </AppLayout>
   );
 }

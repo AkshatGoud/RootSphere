@@ -5,13 +5,13 @@ import { SoilSensorCard } from "@/components/SoilSensorCard";
 import { WeatherCard } from "@/components/WeatherCard";
 import { EditFieldDialog } from "@/components/EditFieldDialog";
 import { AddImageDialog } from "@/components/AddImageDialog";
+import { AppLayout } from "@/components/AppLayout";
 import { snapshotApi, fieldsApi, resolveImageUrl } from "@/lib/api";
-import { storage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { storage } from "@/lib/storage";
 import { toast } from "sonner";
 import type { FieldSnapshot, Field } from "@/types/api";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -21,33 +21,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-const LANG_OPTIONS = [
-  { code: "en" as const, label: "🇺🇸 English" },
-  { code: "hi" as const, label: "🇮🇳 हिंदी" },
-  { code: "te" as const, label: "🇮🇳 తెలుగు" },
-  { code: "ta" as const, label: "🇮🇳 தமிழ்" },
-];
-
-const GROWTH_STAGE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  seedling: { bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-700 dark:text-green-400', border: 'border-green-200 dark:border-green-800' },
-  vegetative: { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-700 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800' },
-  flowering: { bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-700 dark:text-purple-400', border: 'border-purple-200 dark:border-purple-800' },
-  fruiting: { bg: 'bg-rose-50 dark:bg-rose-900/20', text: 'text-rose-700 dark:text-rose-400', border: 'border-rose-200 dark:border-rose-800' },
-  harvest: { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800' },
-  mature: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-400', border: 'border-slate-300 dark:border-slate-700' },
-};
-
-const CROP_ICONS: Record<string, string> = {
-  rice: 'rice_bowl',
-  wheat: 'grain',
-  cotton: 'filter_vintage',
-  maize: 'grass',
-  groundnut: 'spa',
-  sorghum: 'grain',
-};
-
-const GROWTH_STAGES_ORDER = ['seedling', 'vegetative', 'flowering', 'fruiting', 'mature', 'harvest'];
+import {
+  GROWTH_STAGE_COLORS,
+  GROWTH_STAGES_ORDER,
+  getStageColors,
+  getCropIcon,
+} from "@/constants/crops";
 
 // Stage-specific care tips keyed by stage name. Values are translation keys.
 const STAGE_TIPS: Record<string, { icon: string; tips: string[] }> = {
@@ -103,9 +82,6 @@ const STAGE_TIPS: Record<string, { icon: string; tips: string[] }> = {
   },
 };
 
-const getStageColors = (stage: string) => GROWTH_STAGE_COLORS[stage.toLowerCase()] || GROWTH_STAGE_COLORS.seedling;
-const getCropIcon = (crop: string) => CROP_ICONS[crop.toLowerCase()] || 'agriculture';
-
 const getSourceBadge = (source: string): { icon: string; label: string } => {
   switch (source?.toLowerCase()) {
     case 'mobile': return { icon: 'smartphone', label: 'Mobile' };
@@ -128,8 +104,7 @@ export default function FieldDetail() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const farmerName = localStorage.getItem("farmer_name") || "Farmer";
-  const { language, setLanguage, t } = useLanguage();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (fieldId) {
@@ -159,98 +134,10 @@ export default function FieldDetail() {
     }
   };
 
-  const handleLogout = () => {
-    storage.clearAll();
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("farmer_name");
-    navigate("/");
-  };
-
-  // Page shell that wraps loading, error, and loaded states
+  // Page shell that wraps loading, error, and loaded states.
+  // Extra bottom padding (pb-20 md:pb-6) reserves space for the desktop action bar.
   const renderPageShell = (content: React.ReactNode) => (
-    <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col overflow-x-hidden pb-20 md:pb-6">
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark px-6 py-3 shadow-sm">
-        <div className="flex items-center gap-4 cursor-pointer" onClick={() => navigate('/dashboard')}>
-          <div className="size-8 text-primary flex items-center justify-center">
-            <span className="material-symbols-outlined !text-[32px]">spa</span>
-          </div>
-          <h2 className="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">
-            RootSphere AI
-          </h2>
-        </div>
-        <nav className="hidden md:flex items-center gap-1 ml-6">
-          <button onClick={() => navigate('/dashboard')} className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-primary transition-colors flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[20px]">dashboard</span>
-            {t('Dashboard')}
-          </button>
-          <button onClick={() => navigate('/fields')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-primary transition-colors flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[20px]">spa</span>
-            {t('Fields')}
-          </button>
-          <button onClick={() => navigate('/sensors')} className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-primary transition-colors flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[20px]">sensors</span>
-            {t('Sensors')}
-          </button>
-        </nav>
-        <div className="hidden md:flex flex-1 items-center justify-end gap-6">
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1 outline-none">
-                  <span className="material-symbols-outlined">translate</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
-                {LANG_OPTIONS.map(opt => (
-                  <DropdownMenuItem
-                    key={opt.code}
-                    onClick={() => setLanguage(opt.code)}
-                    className={`cursor-pointer ${language === opt.code ? 'text-primary font-bold bg-slate-50 dark:bg-slate-700/50' : 'text-slate-700 dark:text-slate-300'}`}
-                  >
-                    {opt.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <button
-              onClick={handleLogout}
-              className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <span className="material-symbols-outlined">logout</span>
-            </button>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
-            <Link to="/profile" className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-              <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
-                {(farmerName && farmerName.length > 0) ? farmerName.charAt(0).toUpperCase() : "F"}
-              </div>
-              <span className="text-sm font-medium hidden xl:block text-slate-800 dark:text-white">
-                {farmerName}
-              </span>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {content}
-
-      {/* Mobile Bottom Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-surface-dark border-t border-slate-200 dark:border-slate-800 h-16 flex items-center justify-around px-4 z-50">
-        <button onClick={() => navigate('/dashboard')} className="flex flex-col items-center justify-center gap-1 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
-          <span className="material-symbols-outlined text-[22px]">dashboard</span>
-          <span className="text-xs font-medium">{t('Dashboard')}</span>
-        </button>
-        <button onClick={() => navigate('/fields')} className="flex flex-col items-center justify-center gap-1 text-primary transition-colors">
-          <span className="material-symbols-outlined text-[22px]">spa</span>
-          <span className="text-xs font-medium">{t('Fields')}</span>
-        </button>
-        <button onClick={() => navigate('/sensors')} className="flex flex-col items-center justify-center gap-1 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
-          <span className="material-symbols-outlined text-[22px]">sensors</span>
-          <span className="text-xs font-medium">{t('Sensors')}</span>
-        </button>
-      </div>
-    </div>
+    <AppLayout outerClassName="pb-20 md:pb-6">{content}</AppLayout>
   );
 
   // Loading State — skeleton inside shell (Fix 1, 2)
