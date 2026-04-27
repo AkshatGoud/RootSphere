@@ -141,6 +141,24 @@ def _build_field_context(db: Session, field: models.Field) -> str:
     else:
         lines.append("- (no recommendations generated yet)")
 
+    # Sensors assigned to this specific field
+    all_sensors = crud.get_sensors(db, farmer_id=field.farmer_id, limit=100)
+    field_sensors = []
+    for s in all_sensors:
+        a = crud.get_active_assignment(db, s.id)
+        if a and a.field_id == field.id:
+            field_sensors.append(s)
+
+    lines.append("")
+    lines.append(f"SENSORS ON THIS FIELD ({len(field_sensors)} total):")
+    if field_sensors:
+        for s in field_sensors:
+            lines.append(
+                f"- {s.name} (type: {s.type}, metrics: {s.metrics}, status: {s.status})"
+            )
+    else:
+        lines.append("- (no sensors assigned to this field)")
+
     images = crud.get_latest_images(db, field.id, limit=1)
     lines.append("")
     lines.append("LATEST IMAGE ANALYSIS:")
@@ -197,10 +215,48 @@ def _build_farm_context(db: Session, farmer_id: str) -> str:
     prompt. Each field is one paragraph; whole block stays comfortably
     inside Gemma 4's 128K context window even for ~50 fields."""
     fields = crud.get_fields_by_farmer(db, farmer_id)
-    lines: List[str] = [f"FARM OVERVIEW — {len(fields)} field(s):"]
+    sensors = crud.get_sensors(db, farmer_id=farmer_id, limit=200)
+
+    # Build a sensor_id -> active_field_id map once so the per-field listings
+    # below don't trigger a query per sensor.
+    sensor_assignments: dict[str, str | None] = {}
+    for s in sensors:
+        a = crud.get_active_assignment(db, s.id)
+        sensor_assignments[s.id] = a.field_id if a else None
+
+    n_active = sum(1 for s in sensors if s.status == "active")
+    n_unassigned = sum(1 for s in sensors if sensor_assignments.get(s.id) is None)
+
+    lines: List[str] = [
+        f"FARM OVERVIEW — {len(fields)} field(s), {len(sensors)} sensor(s) "
+        f"({n_active} active, {n_unassigned} unassigned)"
+    ]
+
+    if not fields and not sensors:
+        lines.append("- (no fields or sensors registered yet)")
+        return "\n".join(lines)
+
+    # Flat sensor list — answers "how many sensors do I have", "what types",
+    # "which sensors aren't assigned to anything yet"
+    if sensors:
+        lines.append("")
+        lines.append("ALL SENSORS:")
+        for s in sensors:
+            assigned_to = sensor_assignments.get(s.id)
+            field_name = next((f.name for f in fields if f.id == assigned_to), None)
+            location = (
+                f"on field '{field_name}'" if field_name
+                else "(unassigned)" if assigned_to is None
+                else "(assigned to a deleted field)"
+            )
+            lines.append(
+                f"- {s.name} (type: {s.type}, metrics: {s.metrics}, "
+                f"status: {s.status}) — {location}"
+            )
 
     if not fields:
-        lines.append("- (no fields registered yet)")
+        lines.append("")
+        lines.append("(no fields registered yet)")
         return "\n".join(lines)
 
     for f in fields:
@@ -215,6 +271,14 @@ def _build_farm_context(db: Session, farmer_id: str) -> str:
         lines.append(f"  - Crop: {f.crop} ({canonical_crop}), stage: {f.growth_stage}")
         if f.lat is not None and f.lon is not None:
             lines.append(f"  - Location: {f.lat:.4f}, {f.lon:.4f}")
+
+        # Which of the farmer's sensors are currently assigned to this field
+        assigned = [s for s in sensors if sensor_assignments.get(s.id) == f.id]
+        if assigned:
+            names = ", ".join(s.name for s in assigned)
+            lines.append(f"  - Sensors here ({len(assigned)}): {names}")
+        else:
+            lines.append("  - Sensors here: (none assigned)")
 
         if sensor:
             lines.append(
