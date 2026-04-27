@@ -7,8 +7,12 @@ services:
       - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/smartsoil
-      - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_MODEL=gemma3:4b
+      # Point at the host's Ollama (Metal-accelerated) instead of the
+      # Docker ollama container. Host Ollama uses Apple Silicon GPU and
+      # has full host memory, so Gemma 4 runs ~10x faster than CPU-only
+      # Docker inference.
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - OLLAMA_MODEL=gemma4:e2b
     depends_on:
       db:
         condition: service_healthy
