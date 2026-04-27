@@ -56,10 +56,9 @@ async function request<T>(
 
   if (!response.ok) {
     if (response.status === 401) {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("farmer_name");
       storage.clearAll();
-      window.location.href = "/";
+      // Let App.tsx handle the navigation via react-router (no full page reload).
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
       throw new ApiError(401, "Session expired. Please log in again.");
     }
 

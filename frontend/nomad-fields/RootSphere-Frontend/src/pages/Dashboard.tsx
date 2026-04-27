@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { fieldsApi, sensorsApi, snapshotApi } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -59,12 +60,12 @@ export default function Dashboard() {
         try {
           const snap = await snapshotApi.getLatest(fieldsData[0].id);
           setSnapshot(snap);
-        } catch {
-          // Snapshot may not exist yet
+        } catch (err) {
+          // Non-fatal: snapshot may not exist yet for a brand-new field.
         }
       }
-    } catch {
-      // Silently handle — dashboard shows empty state
+    } catch (err) {
+      toast.error(t("Failed to load dashboard"));
     } finally {
       setIsLoading(false);
     }
@@ -147,7 +148,7 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              {/* Avg Soil Moisture */}
+              {/* Featured Field Moisture (first field — not an average) */}
               <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 animate-slide-up" style={{ animationDelay: '100ms' }}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="p-2.5 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg">
@@ -157,10 +158,12 @@ export default function Dashboard() {
                 <p className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
                   {avgMoisture != null ? `${avgMoisture.toFixed(0)}%` : '—'}
                 </p>
-                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">{t('Soil Moisture')}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  {fields[0]?.name ? t('Moisture in') + ' ' + fields[0].name : t('Soil Moisture')}
+                </p>
               </div>
 
-              {/* Current Weather */}
+              {/* Featured Field Weather (first field — not an average) */}
               <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 animate-slide-up" style={{ animationDelay: '150ms' }}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="p-2.5 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
@@ -171,7 +174,9 @@ export default function Dashboard() {
                   {currentTemp != null ? `${currentTemp.toFixed(0)}°C` : '—'}
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
-                  {currentHumidity != null ? `${currentHumidity.toFixed(0)}% ${t('humidity')}` : t('Weather')}
+                  {fields[0]?.name
+                    ? (currentHumidity != null ? `${currentHumidity.toFixed(0)}% ${t('humidity')} · ${fields[0].name}` : fields[0].name)
+                    : t('Weather')}
                 </p>
               </div>
             </div>
@@ -309,7 +314,7 @@ export default function Dashboard() {
                       </div>
                       <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{t('Register Sensor')}</span>
                     </button>
-                    {fields.length > 0 && (
+                    {fields.length === 1 ? (
                       <button
                         onClick={() => navigate(`/field/${fields[0].id}/recommend`)}
                         className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-slate-200 dark:border-slate-700 hover:border-purple-200 dark:hover:border-purple-800 text-left transition-all group"
@@ -319,7 +324,17 @@ export default function Dashboard() {
                         </div>
                         <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{t('Get Recommendation')}</span>
                       </button>
-                    )}
+                    ) : fields.length > 1 ? (
+                      <button
+                        onClick={() => navigate('/fields')}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-slate-200 dark:border-slate-700 hover:border-purple-200 dark:hover:border-purple-800 text-left transition-all group"
+                      >
+                        <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
+                          <span className="material-symbols-outlined text-lg">auto_awesome</span>
+                        </div>
+                        <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{t('Pick a field for recommendation')}</span>
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 

@@ -370,12 +370,24 @@ export default function FieldDetail() {
             <span className="material-symbols-outlined text-primary">timeline</span>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">{t('Growth Stage Timeline')}</h3>
           </div>
-          <div className="flex items-center justify-between gap-1 overflow-x-auto">
-            {GROWTH_STAGES_ORDER.map((stageName, idx) => {
-              const currentIdx = GROWTH_STAGES_ORDER.indexOf((field?.growth_stage || '').toLowerCase());
-              const isActive = stageName === (field?.growth_stage || '').toLowerCase();
-              const isPast = idx < currentIdx;
-              const colors = GROWTH_STAGE_COLORS[stageName] || GROWTH_STAGE_COLORS.seedling;
+          {(() => {
+            // Hoist out of the .map and handle unknown stages (indexOf === -1).
+            const currentStage = (field?.growth_stage || '').toLowerCase();
+            const currentIdx = GROWTH_STAGES_ORDER.indexOf(currentStage as any);
+            const stageUnknown = currentIdx === -1 && currentStage !== '';
+            return (
+              <>
+                {stageUnknown && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">info</span>
+                    {t('Unknown growth stage')}: {field?.growth_stage}
+                  </p>
+                )}
+                <div className="flex items-center justify-between gap-1 overflow-x-auto">
+                  {GROWTH_STAGES_ORDER.map((stageName, idx) => {
+                    const isActive = stageName === currentStage;
+                    const isPast = currentIdx >= 0 && idx < currentIdx;
+                    const colors = GROWTH_STAGE_COLORS[stageName] || GROWTH_STAGE_COLORS.seedling;
               return (
                 <div key={stageName} className="flex items-center flex-1 min-w-0">
                   <div className="flex flex-col items-center flex-1 min-w-0">
@@ -405,14 +417,17 @@ export default function FieldDetail() {
                   {idx < GROWTH_STAGES_ORDER.length - 1 && (
                     <div
                       className={`h-0.5 w-full min-w-[8px] mx-0.5 rounded-full mt-[-16px] ${
-                        idx < currentIdx ? 'bg-primary/40' : 'bg-slate-200 dark:bg-slate-700'
+                        currentIdx >= 0 && idx < currentIdx ? 'bg-primary/40' : 'bg-slate-200 dark:bg-slate-700'
                       }`}
                     />
                   )}
                 </div>
               );
             })}
-          </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         {/* Stage-Specific Care Tips Card */}

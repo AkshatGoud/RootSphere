@@ -6,6 +6,43 @@ import { AppLayout } from "@/components/AppLayout";
 import { toast } from "sonner";
 import type { Recommendation, WhyItem } from "@/types/api";
 
+// Hoisted to module scope so they're built once, not per render.
+const SEVERITY_STYLES: Record<string, string> = {
+  danger: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800",
+  warning: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800",
+  success: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800",
+  info: "bg-slate-50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-700",
+};
+
+const SEVERITY_ICON_COLOR: Record<string, string> = {
+  danger: "text-red-500",
+  warning: "text-amber-500",
+  success: "text-emerald-500",
+  info: "text-slate-400",
+};
+
+const CATEGORY_BORDER: Record<string, string> = {
+  red: "border-l-red-500",
+  blue: "border-l-blue-500",
+  amber: "border-l-amber-500",
+  emerald: "border-l-emerald-500",
+  purple: "border-l-purple-500",
+  sky: "border-l-sky-500",
+  slate: "border-l-slate-400",
+};
+
+const CATEGORY_ICON_COLOR: Record<string, string> = {
+  red: "text-red-600 dark:text-red-400",
+  blue: "text-blue-600 dark:text-blue-400",
+  amber: "text-amber-600 dark:text-amber-400",
+  emerald: "text-emerald-600 dark:text-emerald-400",
+  purple: "text-purple-600 dark:text-purple-400",
+  sky: "text-sky-600 dark:text-sky-400",
+  slate: "text-slate-500 dark:text-slate-400",
+};
+
+const CATEGORY_ORDER = ['risk', 'irrigation', 'fertilizer', 'soil', 'image', 'weather', 'info'] as const;
+
 export default function RecommendationResult() {
   const { fieldId } = useParams<{ fieldId: string }>();
   const navigate = useNavigate();
@@ -58,8 +95,12 @@ export default function RecommendationResult() {
         field_id: fieldId,
         recommendation_id: recommendation.id,
         followed,
-        outcome: 'no_change', // Default for immediate feedback
-        notes: feedbackReason
+        // Immediate-feedback default: "improved" if user followed it,
+        // "no_change" if they skipped (they can refine later via the
+        // detailed Feedback page). Previously both branches sent
+        // "no_change", which corrupted the dataset.
+        outcome: followed ? 'improved' : 'no_change',
+        notes: feedbackReason,
       });
       toast.success(t("Feedback submitted!"));
       setFeedbackSubmitted(true);
@@ -236,9 +277,9 @@ export default function RecommendationResult() {
           </div>
         </div>
 
-        {/* Risk Alert Banner */}
+        {/* Risk Alert Banner — animate in once, then stay still (vestibular safety) */}
         {recommendation.risk_alert && (
-          <div className="mb-6 rounded-xl border-2 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/40 p-5 flex items-start gap-4 animate-pulse">
+          <div className="mb-6 rounded-xl border-2 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/40 p-5 flex items-start gap-4 animate-fade-in">
             <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-full shrink-0 mt-0.5">
               <span className="material-symbols-outlined text-2xl text-red-600 dark:text-red-400">warning</span>
             </div>
@@ -280,40 +321,6 @@ export default function RecommendationResult() {
                     info:       { icon: "info",          label: t("Additional Info"),    color: "slate" },
                   };
 
-                  const SEVERITY_STYLES: Record<string, string> = {
-                    danger:  "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800",
-                    warning: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800",
-                    success: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800",
-                    info:    "bg-slate-50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-700",
-                  };
-
-                  const SEVERITY_ICON_COLOR: Record<string, string> = {
-                    danger:  "text-red-500",
-                    warning: "text-amber-500",
-                    success: "text-emerald-500",
-                    info:    "text-slate-400",
-                  };
-
-                  const CATEGORY_BORDER: Record<string, string> = {
-                    red:     "border-l-red-500",
-                    blue:    "border-l-blue-500",
-                    amber:   "border-l-amber-500",
-                    emerald: "border-l-emerald-500",
-                    purple:  "border-l-purple-500",
-                    sky:     "border-l-sky-500",
-                    slate:   "border-l-slate-400",
-                  };
-
-                  const CATEGORY_ICON_COLOR: Record<string, string> = {
-                    red:     "text-red-600 dark:text-red-400",
-                    blue:    "text-blue-600 dark:text-blue-400",
-                    amber:   "text-amber-600 dark:text-amber-400",
-                    emerald: "text-emerald-600 dark:text-emerald-400",
-                    purple:  "text-purple-600 dark:text-purple-400",
-                    sky:     "text-sky-600 dark:text-sky-400",
-                    slate:   "text-slate-500 dark:text-slate-400",
-                  };
-
                   // Normalize items
                   const items: WhyItem[] = recommendation.why.map(item => {
                     if (typeof item === 'object' && item !== null && 'category' in item) {
@@ -329,9 +336,7 @@ export default function RecommendationResult() {
                     groups[item.category].push(item);
                   }
 
-                  const categoryOrder = ['risk', 'irrigation', 'fertilizer', 'soil', 'image', 'weather', 'info'];
-
-                  return categoryOrder
+                  return CATEGORY_ORDER
                     .filter(cat => groups[cat]?.length)
                     .map(cat => {
                       const config = CATEGORY_CONFIG[cat];

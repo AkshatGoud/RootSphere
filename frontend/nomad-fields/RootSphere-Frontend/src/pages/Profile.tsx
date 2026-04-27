@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { farmersApi } from "@/lib/api";
+import { auth } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
@@ -55,7 +56,7 @@ export function Profile() {
         setIsLoading(true);
         try {
             const updated = await farmersApi.update(farmerId, formData);
-            localStorage.setItem("farmer_name", updated.name);
+            auth.setName(updated.name);
             setLanguage(updated.language as any);
             toast.success(t("Profile updated successfully"));
         } catch (err: any) {

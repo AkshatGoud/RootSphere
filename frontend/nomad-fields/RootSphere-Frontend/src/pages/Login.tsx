@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { authApi } from "@/lib/api";
-import { storage } from "@/lib/storage";
+import { auth } from "@/lib/storage";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -27,13 +27,18 @@ const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
     const googleButtonRef = useRef<HTMLDivElement>(null);
 
-    const handleGoogleSuccess = async (credential: string) => {
+    // Keep a ref to the latest credential handler so the effect (which runs
+    // once) can call it without taking a stale closure on `t` / `navigate`.
+    const handleGoogleSuccessRef = useRef<(credential: string) => Promise<void>>();
+    handleGoogleSuccessRef.current = async (credential: string) => {
         setIsLoading(true);
         try {
             const response = await authApi.googleLogin(credential);
-            localStorage.setItem("access_token", response.access_token);
-            storage.setFarmerId(response.farmer_id);
-            localStorage.setItem("farmer_name", response.farmer_name);
+            auth.setSession({
+                token: response.access_token,
+                name: response.farmer_name,
+                id: response.farmer_id,
+            });
             toast.success(`${t("welcomeBack")}, ${response.farmer_name}!`);
             navigate("/dashboard");
         } catch (error: any) {
@@ -55,7 +60,7 @@ const Login = () => {
             window.google?.accounts.id.initialize({
                 client_id: clientId,
                 callback: (response: { credential: string }) => {
-                    handleGoogleSuccess(response.credential);
+                    handleGoogleSuccessRef.current?.(response.credential);
                 },
             });
             if (googleButtonRef.current) {
@@ -69,7 +74,7 @@ const Login = () => {
         };
         document.head.appendChild(script);
         return () => {
-            document.head.removeChild(script);
+            if (script.parentNode) script.parentNode.removeChild(script);
         };
     }, []);
 
@@ -79,9 +84,11 @@ const Login = () => {
 
         try {
             const response = await authApi.login({ email, password });
-            localStorage.setItem("access_token", response.access_token);
-            storage.setFarmerId(response.farmer_id);
-            localStorage.setItem("farmer_name", response.farmer_name);
+            auth.setSession({
+                token: response.access_token,
+                name: response.farmer_name,
+                id: response.farmer_id,
+            });
             toast.success(`${t("welcomeBack")}, ${response.farmer_name}!`);
             navigate("/dashboard");
         } catch (error: any) {

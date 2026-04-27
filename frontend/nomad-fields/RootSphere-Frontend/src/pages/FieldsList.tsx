@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { fieldsApi, snapshotApi } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -88,13 +88,13 @@ export default function FieldsList() {
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Breadcrumbs */}
         <nav className="flex mb-6 text-sm font-medium text-slate-500 dark:text-slate-400">
-          <a
-            className="hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
-            onClick={() => navigate('/dashboard')}
+          <Link
+            to="/dashboard"
+            className="hover:text-primary transition-colors flex items-center gap-1"
           >
             <span className="material-symbols-outlined text-[18px]">dashboard</span>
-            RootSphere
-          </a>
+            {t('Dashboard')}
+          </Link>
           <span className="mx-2">/</span>
           <span className="text-slate-900 dark:text-white font-semibold">
             {t('Fields')}
