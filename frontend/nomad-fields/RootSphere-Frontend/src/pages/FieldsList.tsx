@@ -8,6 +8,7 @@ import { getStageColors, getCropIcon } from "@/constants/crops";
 import type { Field, FieldSnapshot } from "@/types/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FieldsMapView } from "@/components/FieldsMapView";
 
 export default function FieldsList() {
   const navigate = useNavigate();
@@ -15,7 +16,7 @@ export default function FieldsList() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('grid');
   const [sortBy, setSortBy] = useState<string>('name');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [snapshots, setSnapshots] = useState<Record<string, FieldSnapshot>>({});
@@ -264,14 +265,23 @@ export default function FieldsList() {
                   <button
                     onClick={() => setViewMode('grid')}
                     className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                    aria-label={t('Grid view')}
                   >
                     <span className="material-symbols-outlined text-[20px]">grid_view</span>
                   </button>
                   <button
                     onClick={() => setViewMode('list')}
                     className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                    aria-label={t('List view')}
                   >
                     <span className="material-symbols-outlined text-[20px]">view_list</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('map')}
+                    className={`p-2 transition-colors ${viewMode === 'map' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                    aria-label={t('Map view')}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">map</span>
                   </button>
                 </div>
                 <button
@@ -317,6 +327,8 @@ export default function FieldsList() {
                 <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-3">search_off</span>
                 <p className="text-slate-500 dark:text-slate-400">{t('No fields match your filters.')}</p>
               </div>
+            ) : viewMode === 'map' ? (
+              <FieldsMapView fields={filteredSortedFields} />
             ) : viewMode === 'grid' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredSortedFields.map((field) => {

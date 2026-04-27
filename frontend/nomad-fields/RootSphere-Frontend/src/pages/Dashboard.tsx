@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { fieldsApi, sensorsApi, snapshotApi } from "@/lib/api";
+import { storage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
@@ -296,6 +297,29 @@ export default function Dashboard() {
                     {t('Quick Actions')}
                   </h3>
                   <div className="flex flex-col gap-2">
+                    {(() => {
+                      const lastFieldId = storage.getLastFieldId();
+                      const lastField = lastFieldId ? fields.find((f) => f.id === lastFieldId) : null;
+                      if (!lastField) return null;
+                      return (
+                        <button
+                          onClick={() => navigate(`/field/${lastField.id}`)}
+                          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-left transition-all group"
+                        >
+                          <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 group-hover:bg-emerald-200 dark:group-hover:bg-emerald-900/60 transition-colors">
+                            <span className="material-symbols-outlined text-lg">history</span>
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 dark:text-emerald-400">
+                              {t('Continue')}
+                            </span>
+                            <span className="font-medium text-sm text-slate-900 dark:text-white truncate">
+                              {lastField.name}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })()}
                     <button
                       onClick={() => navigate('/fields/new')}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-green-50 dark:hover:bg-green-900/20 border border-slate-200 dark:border-slate-700 hover:border-green-200 dark:hover:border-green-800 text-left transition-all group"
