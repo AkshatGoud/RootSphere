@@ -46,6 +46,47 @@ def _fmt_dt(dt: datetime | None) -> str:
     return dt.isoformat(timespec="seconds") if dt else "(none)"
 
 
+# Translate the engine's machine-style action enums into natural English so
+# Gemma 4 doesn't parrot strings like "IRRIGATE_NOW" or "NO_ACTION" back at
+# the user.
+_IRRIGATION_PHRASES = {
+    "IRRIGATE_NOW": "irrigation recommended now",
+    "DELAY": "irrigation delayed (rain expected)",
+    "NO_ACTION": "no irrigation needed",
+    "UNKNOWN": "irrigation status not determined",
+}
+_FERTILIZER_PHRASES = {
+    "APPLY": "fertilizer recommended",
+    "NO_ACTION": "no fertilizer needed",
+}
+
+
+def _humanize_irrigation(action_dict: dict) -> str:
+    raw = (action_dict or {}).get("action", "UNKNOWN")
+    phrase = _IRRIGATION_PHRASES.get(raw, raw.lower().replace("_", " "))
+    liters = (action_dict or {}).get("liters_per_acre", 0)
+    timing = (action_dict or {}).get("timing", "")
+    extras = []
+    if liters and liters > 0:
+        extras.append(f"{liters:.0f} L/acre")
+    if timing and timing.strip() and timing not in ("N/A", "n/a", "unknown"):
+        extras.append(f"timing: {timing}")
+    if extras:
+        phrase += f" ({', '.join(extras)})"
+    return phrase
+
+
+def _humanize_fertilizer(fert_dict: dict) -> str:
+    raw = (fert_dict or {}).get("action", "NO_ACTION")
+    phrase = _FERTILIZER_PHRASES.get(raw, raw.lower().replace("_", " "))
+    n = (fert_dict or {}).get("n_kg_acre", 0)
+    p = (fert_dict or {}).get("p_kg_acre", 0)
+    k = (fert_dict or {}).get("k_kg_acre", 0)
+    if n or p or k:
+        phrase += f" (N={n}, P={p}, K={k} kg/acre)"
+    return phrase
+
+
 def _build_field_context(db: Session, field: models.Field) -> str:
     """Render the field's current state into a compact text block for the prompt."""
     canonical_crop = recommendation._normalize_crop(field.crop or "") if field.crop else ""
@@ -94,10 +135,8 @@ def _build_field_context(db: Session, field: models.Field) -> str:
             action = (r.action_json or {}).get("irrigation", {}) if r.action_json else {}
             fert = (r.action_json or {}).get("fertilizer", {}) if r.action_json else {}
             lines.append(
-                f"- {_fmt_dt(r.ts)}: irrigation={action.get('action', 'UNKNOWN')} "
-                f"({action.get('liters_per_acre', 0)} L/acre, {action.get('timing', 'n/a')}); "
-                f"fertilizer={fert.get('action', 'NO_ACTION')} "
-                f"(N={fert.get('n_kg_acre', 0)}, P={fert.get('p_kg_acre', 0)}, K={fert.get('k_kg_acre', 0)} kg/acre)"
+                f"- {_fmt_dt(r.ts)}: irrigation: {_humanize_irrigation(action)}; "
+                f"fertilizer: {_humanize_fertilizer(fert)}"
             )
     else:
         lines.append("- (no recommendations generated yet)")
@@ -197,8 +236,8 @@ def _build_farm_context(db: Session, farmer_id: str) -> str:
             fert = (r.action_json or {}).get("fertilizer", {})
             lines.append(
                 f"  - Last recommendation ({_fmt_dt(r.ts)}): "
-                f"irrigation={action.get('action', 'UNKNOWN')}, "
-                f"fertilizer={fert.get('action', 'NO_ACTION')}"
+                f"irrigation: {_humanize_irrigation(action)}; "
+                f"fertilizer: {_humanize_fertilizer(fert)}"
             )
 
     return "\n".join(lines)
