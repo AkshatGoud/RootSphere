@@ -6,6 +6,7 @@ import { WeatherCard } from "@/components/WeatherCard";
 import { SensorHistoryCard } from "@/components/SensorHistoryCard";
 import { EditFieldDialog } from "@/components/EditFieldDialog";
 import { AddImageDialog } from "@/components/AddImageDialog";
+import { FieldChat } from "@/components/FieldChat";
 import { AppLayout } from "@/components/AppLayout";
 import { snapshotApi, fieldsApi, resolveImageUrl } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -646,6 +647,9 @@ export default function FieldDetail() {
         onOpenChange={setIsImageOpen}
         onSuccess={loadSnapshot}
       />
+
+      {/* AI chat panel — slides in from right when the floating chat button is clicked */}
+      {fieldId && <FieldChat fieldId={fieldId} />}
 
       {/* Delete Field Confirmation Dialog */}
       <Dialog open={isDeleteFieldOpen} onOpenChange={(open) => !open && setIsDeleteFieldOpen(false)}>

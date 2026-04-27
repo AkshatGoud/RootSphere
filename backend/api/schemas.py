@@ -36,6 +36,22 @@ class ResetPasswordRequest(BaseModel):
 class GoogleAuthRequest(BaseModel):
     credential: str  # Google ID token JWT
 
+
+# --- Chat ("Ask your field") ---
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: List[ChatMessage] = []
+
+
+class ChatResponse(BaseModel):
+    reply: str
+
 class Token(BaseModel):
     access_token: str
     token_type: str

@@ -426,5 +426,16 @@
   "and all its data — sensor readings, weather history, images, and recommendations. This cannot be undone.": "మరియు దాని మొత్తం డేటా — సెన్సార్ రీడింగులు, వాతావరణ చరిత్ర, చిత్రాలు మరియు సిఫార్సులు. దీనిని తిరిగి పొందలేరు.",
   "Good morning": "శుభోదయం",
   "Good afternoon": "శుభ మధ్యాహ్నం",
-  "Good evening": "శుభ సాయంత్రం"
+  "Good evening": "శుభ సాయంత్రం",
+  "Ask about this field": "ఈ ఫీల్డ్ గురించి అడగండి",
+  "Local AI · Gemma 4": "స్థానిక AI · Gemma 4",
+  "Ask anything about this field — its sensor data, weather, recommendations, or recent photos.": "ఈ ఫీల్డ్ గురించి ఏదైనా అడగండి — దాని సెన్సార్ డేటా, వాతావరణం, సిఫార్సులు లేదా ఇటీవలి ఫోటోలు.",
+  "Ask anything about this field…": "ఈ ఫీల్డ్ గురించి ఏదైనా అడగండి…",
+  "Send": "పంపండి",
+  "Generating answer…": "సమాధానం రూపొందిస్తోంది…",
+  "AI assistant is unavailable. Try again.": "AI సహాయకుడు అందుబాటులో లేడు. మళ్ళీ ప్రయత్నించండి.",
+  "Clear conversation": "సంభాషణ క్లియర్ చేయండి",
+  "What is the soil moisture?": "నేల తేమ ఎంత?",
+  "Should I irrigate today?": "నేను ఈరోజు నీరు పెట్టాలా?",
+  "How is the weather forecast?": "వాతావరణ సూచన ఎలా ఉంది?"
 }

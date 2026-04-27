@@ -426,5 +426,16 @@
   "and all its data — sensor readings, weather history, images, and recommendations. This cannot be undone.": "மற்றும் அதன் அனைத்து தரவுகள் — சென்சார் தரவுகள், வானிலை வரலாறு, படங்கள், மற்றும் பரிந்துரைகள். இதை மீட்டெடுக்க முடியாது.",
   "Good morning": "காலை வணக்கம்",
   "Good afternoon": "மதிய வணக்கம்",
-  "Good evening": "மாலை வணக்கம்"
+  "Good evening": "மாலை வணக்கம்",
+  "Ask about this field": "இந்த வயலைப் பற்றிக் கேள்வி கேள்",
+  "Local AI · Gemma 4": "உள்ளக AI · Gemma 4",
+  "Ask anything about this field — its sensor data, weather, recommendations, or recent photos.": "இந்த வயலைப் பற்றி எதையும் கேள் — சென்சார் தரவு, வானிலை, பரிந்துரைகள் அல்லது சமீபத்திய படங்கள்.",
+  "Ask anything about this field…": "இந்த வயலைப் பற்றி எதையும் கேள்…",
+  "Send": "அனுப்பு",
+  "Generating answer…": "பதில் உருவாக்கப்படுகிறது…",
+  "AI assistant is unavailable. Try again.": "AI உதவியாளர் கிடைக்கவில்லை. மீண்டும் முயற்சிக்க.",
+  "Clear conversation": "உரையாடலை அழி",
+  "What is the soil moisture?": "மண் ஈரப்பதம் எவ்வளவு?",
+  "Should I irrigate today?": "நான் இன்று நீர்ப்பாசனம் செய்ய வேண்டுமா?",
+  "How is the weather forecast?": "வானிலை முன்னறிவிப்பு எப்படி உள்ளது?"
 }

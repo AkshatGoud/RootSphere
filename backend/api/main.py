@@ -11,6 +11,7 @@ from google.auth.transport import requests as google_requests
 from .services.weather_ml import weather_ml_service
 from .services.auth import get_current_farmer
 from .services.email import send_reset_code
+from .services.chat import chat_about_field
 from .ml.image_model import analyze_crop_image
 
 import base64
@@ -512,6 +513,35 @@ def get_recommendation(field_id: str, db: Session = Depends(get_db), farmer: mod
     rec_response.id = db_rec.id
 
     return rec_response
+
+@app.post("/field/{field_id}/chat", response_model=schemas.ChatResponse)
+def chat_with_field(
+    field_id: str,
+    req: schemas.ChatRequest,
+    db: Session = Depends(get_db),
+    farmer: models.Farmer = Depends(get_current_farmer),
+):
+    """Ask a natural-language question about a specific field. The local
+    Gemma 4 model receives a context block built from the field's snapshot
+    + recent recommendations + latest image AI findings."""
+    field = crud.get_field_for_farmer(db, field_id, farmer.id)
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found")
+
+    if not req.message or not req.message.strip():
+        raise HTTPException(status_code=400, detail="Empty message")
+
+    try:
+        reply = chat_about_field(db, field, req.message.strip(), req.history)
+    except Exception as e:
+        logger.error(f"Chat failed for field {field_id}: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="AI assistant unavailable. Please try again in a moment.",
+        )
+
+    return schemas.ChatResponse(reply=reply)
+
 
 @app.post("/feedback", response_model=schemas.FeedbackResponse)
 def submit_feedback(feedback: schemas.FeedbackCreate, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):

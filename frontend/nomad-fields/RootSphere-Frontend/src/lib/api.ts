@@ -15,6 +15,8 @@ import type {
   FeedbackRequest,
   FeedbackResponse,
   SensorSummary,
+  ChatRequest,
+  ChatResponse,
 } from "@/types/api";
 import { storage } from "./storage";
 
@@ -242,6 +244,15 @@ export const recommendationApi = {
       fertilizer: item.action_json.fertilizer,
     }));
   },
+};
+
+// Chat API ("Ask your field")
+export const chatApi = {
+  send: (fieldId: string, body: ChatRequest): Promise<ChatResponse> =>
+    request<ChatResponse>(`/field/${fieldId}/chat`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };
 
 // Feedback API

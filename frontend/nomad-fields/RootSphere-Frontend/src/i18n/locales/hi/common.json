@@ -426,5 +426,16 @@
   "and all its data — sensor readings, weather history, images, and recommendations. This cannot be undone.": "और इसका सारा डेटा — सेंसर रीडिंग, मौसम इतिहास, चित्र, और सिफ़ारिशें। यह वापस नहीं किया जा सकता।",
   "Good morning": "सुप्रभात",
   "Good afternoon": "नमस्कार",
-  "Good evening": "शुभ संध्या"
+  "Good evening": "शुभ संध्या",
+  "Ask about this field": "इस फ़ील्ड के बारे में पूछें",
+  "Local AI · Gemma 4": "स्थानीय AI · Gemma 4",
+  "Ask anything about this field — its sensor data, weather, recommendations, or recent photos.": "इस फ़ील्ड के बारे में कुछ भी पूछें — इसके सेंसर डेटा, मौसम, सिफ़ारिशें, या हाल की तस्वीरें।",
+  "Ask anything about this field…": "इस फ़ील्ड के बारे में कुछ भी पूछें…",
+  "Send": "भेजें",
+  "Generating answer…": "उत्तर तैयार हो रहा है…",
+  "AI assistant is unavailable. Try again.": "AI सहायक उपलब्ध नहीं है। फिर से प्रयास करें।",
+  "Clear conversation": "बातचीत साफ़ करें",
+  "What is the soil moisture?": "मिट्टी की नमी कितनी है?",
+  "Should I irrigate today?": "क्या मुझे आज सिंचाई करनी चाहिए?",
+  "How is the weather forecast?": "मौसम का पूर्वानुमान कैसा है?"
 }

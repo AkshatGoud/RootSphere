@@ -426,5 +426,16 @@
   "Forecast": "Forecast",
   "Good morning": "Good morning",
   "Good afternoon": "Good afternoon",
-  "Good evening": "Good evening"
+  "Good evening": "Good evening",
+  "Ask about this field": "Ask about this field",
+  "Local AI · Gemma 4": "Local AI · Gemma 4",
+  "Ask anything about this field — its sensor data, weather, recommendations, or recent photos.": "Ask anything about this field — its sensor data, weather, recommendations, or recent photos.",
+  "Ask anything about this field…": "Ask anything about this field…",
+  "Send": "Send",
+  "Generating answer…": "Generating answer…",
+  "AI assistant is unavailable. Try again.": "AI assistant is unavailable. Try again.",
+  "Clear conversation": "Clear conversation",
+  "What is the soil moisture?": "What is the soil moisture?",
+  "Should I irrigate today?": "Should I irrigate today?",
+  "How is the weather forecast?": "How is the weather forecast?"
 }
