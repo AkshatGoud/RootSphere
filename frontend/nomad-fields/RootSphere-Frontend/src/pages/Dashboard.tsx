@@ -6,6 +6,7 @@ import { storage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
+import { DashboardChat } from "@/components/DashboardChat";
 import type { Field, Sensor, FieldSnapshot } from "@/types/api";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Area, Bar, XAxis, YAxis, CartesianGrid, ComposedChart } from "recharts";
@@ -434,6 +435,9 @@ export default function Dashboard() {
           <a href="#" className="hover:text-slate-600 transition-colors">{t("Terms of Service")}</a>
         </div>
       </footer>
+
+      {/* Cross-field AI chat — slides in from right when the floating button is clicked */}
+      <DashboardChat />
 
     </AppLayout>
   );

@@ -437,5 +437,10 @@
   "Clear conversation": "సంభాషణ క్లియర్ చేయండి",
   "What is the soil moisture?": "నేల తేమ ఎంత?",
   "Should I irrigate today?": "నేను ఈరోజు నీరు పెట్టాలా?",
-  "How is the weather forecast?": "వాతావరణ సూచన ఎలా ఉంది?"
+  "How is the weather forecast?": "వాతావరణ సూచన ఎలా ఉంది?",
+  "Ask about your farm": "మీ వ్యవసాయ క్షేత్రం గురించి అడగండి",
+  "Ask anything across all your fields — moisture levels, weather risks, what to focus on today.": "మీ అన్ని ఫీల్డ్‌లపై ఏదైనా అడగండి — తేమ స్థాయిలు, వాతావరణ ప్రమాదాలు, నేడు దేనిపై దృష్టి పెట్టాలి.",
+  "Which of my fields needs water?": "నా ఏ ఫీల్డ్‌కు నీరు అవసరం?",
+  "Which field needs the most attention today?": "నేడు ఏ ఫీల్డ్‌కు ఎక్కువ శ్రద్ధ అవసరం?",
+  "Are any of my fields at risk?": "నా ఏదైనా ఫీల్డ్ ప్రమాదంలో ఉందా?"
 }

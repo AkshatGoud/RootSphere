@@ -12,7 +12,7 @@ services:
       # has full host memory, so Gemma 4 runs ~10x faster than CPU-only
       # Docker inference.
       - OLLAMA_HOST=http://host.docker.internal:11434
-      - OLLAMA_MODEL=gemma4:e2b
+      - OLLAMA_MODEL=gemma4:e4b
     depends_on:
       db:
         condition: service_healthy

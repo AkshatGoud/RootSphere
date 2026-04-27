@@ -246,10 +246,15 @@ export const recommendationApi = {
   },
 };
 
-// Chat API ("Ask your field")
+// Chat API ("Ask your field" — per-field) and ("Ask your farm" — dashboard)
 export const chatApi = {
   send: (fieldId: string, body: ChatRequest): Promise<ChatResponse> =>
     request<ChatResponse>(`/field/${fieldId}/chat`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  sendDashboard: (body: ChatRequest): Promise<ChatResponse> =>
+    request<ChatResponse>(`/chat/dashboard`, {
       method: "POST",
       body: JSON.stringify(body),
     }),

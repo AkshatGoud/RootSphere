@@ -437,5 +437,10 @@
   "Clear conversation": "बातचीत साफ़ करें",
   "What is the soil moisture?": "मिट्टी की नमी कितनी है?",
   "Should I irrigate today?": "क्या मुझे आज सिंचाई करनी चाहिए?",
-  "How is the weather forecast?": "मौसम का पूर्वानुमान कैसा है?"
+  "How is the weather forecast?": "मौसम का पूर्वानुमान कैसा है?",
+  "Ask about your farm": "अपने खेत के बारे में पूछें",
+  "Ask anything across all your fields — moisture levels, weather risks, what to focus on today.": "अपने सभी खेतों के बारे में कुछ भी पूछें — नमी स्तर, मौसम जोखिम, आज क्या ध्यान दें।",
+  "Which of my fields needs water?": "मेरे किस खेत को पानी की ज़रूरत है?",
+  "Which field needs the most attention today?": "आज किस खेत पर सबसे ज़्यादा ध्यान देना चाहिए?",
+  "Are any of my fields at risk?": "क्या मेरे किसी खेत पर कोई जोखिम है?"
 }

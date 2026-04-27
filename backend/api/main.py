@@ -11,7 +11,7 @@ from google.auth.transport import requests as google_requests
 from .services.weather_ml import weather_ml_service
 from .services.auth import get_current_farmer
 from .services.email import send_reset_code
-from .services.chat import chat_about_field
+from .services.chat import chat_about_field, chat_about_farm
 from .ml.image_model import analyze_crop_image
 
 import base64
@@ -513,6 +513,29 @@ def get_recommendation(field_id: str, db: Session = Depends(get_db), farmer: mod
     rec_response.id = db_rec.id
 
     return rec_response
+
+@app.post("/chat/dashboard", response_model=schemas.ChatResponse)
+def chat_with_farm(
+    req: schemas.ChatRequest,
+    db: Session = Depends(get_db),
+    farmer: models.Farmer = Depends(get_current_farmer),
+):
+    """Cross-field chat. The local Gemma 4 receives a summary of every field
+    the farmer owns and answers questions that span the whole farm."""
+    if not req.message or not req.message.strip():
+        raise HTTPException(status_code=400, detail="Empty message")
+
+    try:
+        reply = chat_about_farm(db, farmer.id, req.message.strip(), req.history)
+    except Exception as e:
+        logger.error(f"Dashboard chat failed for farmer {farmer.id}: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="AI assistant unavailable. Please try again in a moment.",
+        )
+
+    return schemas.ChatResponse(reply=reply)
+
 
 @app.post("/field/{field_id}/chat", response_model=schemas.ChatResponse)
 def chat_with_field(

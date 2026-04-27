@@ -437,5 +437,10 @@
   "Clear conversation": "Clear conversation",
   "What is the soil moisture?": "What is the soil moisture?",
   "Should I irrigate today?": "Should I irrigate today?",
-  "How is the weather forecast?": "How is the weather forecast?"
+  "How is the weather forecast?": "How is the weather forecast?",
+  "Ask about your farm": "Ask about your farm",
+  "Ask anything across all your fields — moisture levels, weather risks, what to focus on today.": "Ask anything across all your fields — moisture levels, weather risks, what to focus on today.",
+  "Which of my fields needs water?": "Which of my fields needs water?",
+  "Which field needs the most attention today?": "Which field needs the most attention today?",
+  "Are any of my fields at risk?": "Are any of my fields at risk?"
 }

@@ -437,5 +437,10 @@
   "Clear conversation": "உரையாடலை அழி",
   "What is the soil moisture?": "மண் ஈரப்பதம் எவ்வளவு?",
   "Should I irrigate today?": "நான் இன்று நீர்ப்பாசனம் செய்ய வேண்டுமா?",
-  "How is the weather forecast?": "வானிலை முன்னறிவிப்பு எப்படி உள்ளது?"
+  "How is the weather forecast?": "வானிலை முன்னறிவிப்பு எப்படி உள்ளது?",
+  "Ask about your farm": "உங்கள் பண்ணையைப் பற்றிக் கேள்வி கேள்",
+  "Ask anything across all your fields — moisture levels, weather risks, what to focus on today.": "உங்கள் அனைத்து வயல்களைப் பற்றியும் கேள்வி கேள் — ஈரப்பத அளவுகள், வானிலை அபாயங்கள், இன்று எதில் கவனம் செலுத்த வேண்டும்.",
+  "Which of my fields needs water?": "என் எந்த வயலுக்கு நீர் தேவை?",
+  "Which field needs the most attention today?": "இன்று எந்த வயலில் அதிக கவனம் தேவை?",
+  "Are any of my fields at risk?": "என் ஏதேனும் வயல் ஆபத்தில் உள்ளதா?"
 }

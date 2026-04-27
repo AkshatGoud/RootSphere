@@ -27,13 +27,18 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e2b")
 OLLAMA_TIMEOUT_S = int(os.environ.get("OLLAMA_TIMEOUT_S", "120"))
 
 _SYSTEM_PROMPT_HEADER = (
-    "You are an agricultural advisor inside the RootSphere app, helping a "
-    "smallholder Indian farmer manage one specific field. Use the field "
-    "context below to answer the farmer's question. Cite specific numbers "
-    "from the data when relevant. Be concise (2-4 sentences typical). Use "
-    "farmer-friendly language. If the user writes in Hindi, Tamil, or "
-    "Telugu, respond in that language. If you do not have data to answer "
-    "something, say so honestly rather than guessing.\n"
+    "You are an agricultural advisor inside the RootSphere app. You help "
+    "the user understand and act on data from one specific field. Use the "
+    "context below to answer questions. Cite specific numbers from the data "
+    "when relevant. Be concise (2-4 sentences typical).\n"
+    "\n"
+    "LANGUAGE RULE (CRITICAL): Detect the script of the user's most recent "
+    "message and reply in EXACTLY that script and language. Latin script -> "
+    "English. Devanagari -> Hindi. Tamil script -> Tamil. Telugu script -> "
+    "Telugu. Never switch languages on the user; mirror them.\n"
+    "\n"
+    "If you do not have data to answer something, say so honestly rather "
+    "than guessing.\n"
 )
 
 
@@ -130,6 +135,123 @@ def _build_field_context(db: Session, field: models.Field) -> str:
     return "\n".join(lines)
 
 
+_DASHBOARD_PROMPT_HEADER = (
+    "You are an agricultural advisor inside the RootSphere app. You help "
+    "the user understand and act on data across MULTIPLE fields. Use the "
+    "per-field summaries below to answer questions that span the whole "
+    "farm. Cite specific field names and numbers when relevant. Be concise "
+    "(2-5 sentences typical).\n"
+    "\n"
+    "LANGUAGE RULE (CRITICAL): Detect the script of the user's most recent "
+    "message and reply in EXACTLY that script and language. Latin script -> "
+    "English. Devanagari -> Hindi. Tamil script -> Tamil. Telugu script -> "
+    "Telugu. Never switch languages on the user; mirror them.\n"
+    "\n"
+    "If you do not have data to answer something, say so honestly rather "
+    "than guessing.\n"
+)
+
+
+def _build_farm_context(db: Session, farmer_id: str) -> str:
+    """Render every field the farmer owns, plus its latest snapshot and most
+    recent recommendation, into a compact text block for the dashboard chat
+    prompt. Each field is one paragraph; whole block stays comfortably
+    inside Gemma 4's 128K context window even for ~50 fields."""
+    fields = crud.get_fields_by_farmer(db, farmer_id)
+    lines: List[str] = [f"FARM OVERVIEW — {len(fields)} field(s):"]
+
+    if not fields:
+        lines.append("- (no fields registered yet)")
+        return "\n".join(lines)
+
+    for f in fields:
+        canonical_crop = recommendation._normalize_crop(f.crop or "") if f.crop else ""
+        sensor = crud.get_latest_sensor_reading(db, f.id)
+        weather = crud.get_latest_weather_reading(db, f.id)
+        rainfall_24h = crud.get_rainfall_24h(db, f.id)
+        recs = crud.get_recommendations(db, f.id, limit=1)
+
+        lines.append("")
+        lines.append(f"FIELD: {f.name or '(unnamed)'} (id={f.id[:8]}…)")
+        lines.append(f"  - Crop: {f.crop} ({canonical_crop}), stage: {f.growth_stage}")
+        if f.lat is not None and f.lon is not None:
+            lines.append(f"  - Location: {f.lat:.4f}, {f.lon:.4f}")
+
+        if sensor:
+            lines.append(
+                f"  - Latest sensor ({_fmt_dt(sensor.ts)}): moisture={sensor.moisture}%, "
+                f"pH={sensor.ph}, N={sensor.n}, P={sensor.p}, K={sensor.k} ppm"
+            )
+        else:
+            lines.append("  - Latest sensor: (no readings)")
+
+        if weather:
+            lines.append(
+                f"  - Weather: {weather.temp_c}°C, {weather.humidity_pct}% humidity, "
+                f"{rainfall_24h:.1f}mm rain in last 24h"
+            )
+
+        if recs:
+            r = recs[0]
+            action = (r.action_json or {}).get("irrigation", {})
+            fert = (r.action_json or {}).get("fertilizer", {})
+            lines.append(
+                f"  - Last recommendation ({_fmt_dt(r.ts)}): "
+                f"irrigation={action.get('action', 'UNKNOWN')}, "
+                f"fertilizer={fert.get('action', 'NO_ACTION')}"
+            )
+
+    return "\n".join(lines)
+
+
+def chat_about_farm(
+    db: Session,
+    farmer_id: str,
+    user_message: str,
+    history: List[schemas.ChatMessage],
+) -> str:
+    """Cross-field chat. Sends a summary of every field the farmer owns to
+    Gemma 4 along with the question."""
+    context_block = _build_farm_context(db, farmer_id)
+    system_prompt = _DASHBOARD_PROMPT_HEADER + "\n" + context_block
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for h in history[-12:]:
+        messages.append({"role": h.role, "content": h.content})
+    messages.append({"role": "user", "content": user_message})
+
+    payload = {
+        "model": OLLAMA_MODEL,
+        "stream": False,
+        "messages": messages,
+        # num_predict generous enough to cover Gemma 4 E4B's internal reasoning
+        # tokens before the visible answer (E4B often "thinks" for ~300-800
+        # tokens with longer prompts).
+        "options": {"temperature": 0.4, "num_predict": 2000},
+        "keep_alive": "24h",
+        # Disable extended reasoning so the model emits a direct answer
+        # rather than long internal monologue.
+        "think": False,
+    }
+
+    logger.info(
+        f"Dashboard chat: farmer={farmer_id} history_len={len(history)} "
+        f"message_len={len(user_message)}"
+    )
+
+    resp = requests.post(
+        f"{OLLAMA_HOST}/api/chat",
+        json=payload,
+        timeout=OLLAMA_TIMEOUT_S,
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    reply = (body.get("message") or {}).get("content", "").strip()
+    if not reply:
+        raise RuntimeError("Ollama returned an empty reply")
+    return reply
+
+
 def chat_about_field(
     db: Session,
     field: models.Field,
@@ -154,10 +276,12 @@ def chat_about_field(
         "stream": False,
         "messages": messages,
         "options": {
-            "temperature": 0.4,  # slightly more conversational than disease detection
-            "num_predict": 400,
+            "temperature": 0.4,
+            # Generous to cover any internal reasoning before the visible answer.
+            "num_predict": 2000,
         },
-        "keep_alive": "24h",  # don't unload the model between calls during a demo
+        "keep_alive": "24h",
+        "think": False,  # disable extended reasoning — go straight to the answer
     }
 
     logger.info(
