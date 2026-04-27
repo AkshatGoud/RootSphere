@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timedelta
 from .services.weather_ml import weather_ml_service
 from .services.auth import get_current_farmer
@@ -26,8 +26,9 @@ logger = logging.getLogger("api")
 
 app = FastAPI(title="RootSphere AI API")
 
-# Create database tables on startup
-models.Base.metadata.create_all(bind=engine)
+# Schema is owned by Alembic — see backend/migrations/.
+# (Previously: models.Base.metadata.create_all — removed to avoid silent
+# schema drift when migrations and create_all disagree.)
 
 # Static file serving for uploaded images
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
@@ -268,12 +269,22 @@ def delete_field(field_id: str, db: Session = Depends(get_db), farmer: models.Fa
 def list_fields(db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
     return crud.get_fields_by_farmer(db, farmer.id)
 
-@app.post("/ingest/sensor", response_model=schemas.SensorReadingCreate)
+@app.post("/ingest/sensor", response_model=schemas.SensorSummary)
 def ingest_sensor(reading: schemas.SensorReadingCreate, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
     if not crud.get_field_for_farmer(db, reading.field_id, farmer.id):
         raise HTTPException(status_code=404, detail="Field not found")
-    crud.create_sensor_reading(db, reading)
-    return reading
+    db_reading = crud.create_sensor_reading(db, reading)
+    # Return the persisted reading (with the DB-assigned ts and the structured
+    # values), not the raw input. SensorSummary mirrors what the unified
+    # snapshot endpoint exposes.
+    return schemas.SensorSummary(
+        ts=db_reading.ts,
+        moisture=db_reading.moisture,
+        ph=db_reading.ph,
+        n=db_reading.n,
+        p=db_reading.p,
+        k=db_reading.k,
+    )
 
 @app.post("/ingest/weather", response_model=schemas.WeatherReadingCreate)
 def ingest_weather(reading: schemas.WeatherReadingCreate, db: Session = Depends(get_db), farmer: models.Farmer = Depends(get_current_farmer)):
@@ -308,14 +319,8 @@ async def upload_image_file(
     import base64
     contents = await file.read()
 
-    # Also save to local uploads dir (for local dev)
-    ext = file.filename.rsplit(".", 1)[-1] if "." in (file.filename or "") else "jpg"
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    filepath = os.path.join(UPLOADS_DIR, filename)
-    with open(filepath, "wb") as f:
-        f.write(contents)
-
-    # Store as base64 data URL in DB (works on Render without persistent disk)
+    # Store as base64 data URL in DB (Render's free tier disk is ephemeral, so
+    # the DB is the source of truth — no parallel disk write).
     mime = file.content_type or "image/jpeg"
     rgb_url = f"data:{mime};base64,{base64.b64encode(contents).decode()}"
 
@@ -489,27 +494,34 @@ def list_recommendations(field_id: str, limit: int = 50, db: Session = Depends(g
 @app.get("/sensor_readings", response_model=List[schemas.SensorReadingCreate])
 def list_sensor_readings(
     field_id: str,
-    start: datetime = datetime.utcnow() - timedelta(days=7),
-    end: datetime = datetime.utcnow(),
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
     limit: int = 500,
     db: Session = Depends(get_db),
     farmer: models.Farmer = Depends(get_current_farmer)
 ):
     if not crud.get_field_for_farmer(db, field_id, farmer.id):
         raise HTTPException(status_code=404, detail="Field not found")
+    # Defaults computed per-request (not at import time).
+    now = datetime.utcnow()
+    end = end or now
+    start = start or (now - timedelta(days=7))
     return crud.get_sensor_readings(db, field_id, start, end, limit)
 
 @app.get("/weather_readings", response_model=List[schemas.WeatherReadingResponse])
 def list_weather_readings(
     field_id: str,
-    start: datetime = datetime.utcnow() - timedelta(days=7),
-    end: datetime = datetime.utcnow(),
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
     limit: int = 500,
     db: Session = Depends(get_db),
     farmer: models.Farmer = Depends(get_current_farmer)
 ):
     if not crud.get_field_for_farmer(db, field_id, farmer.id):
         raise HTTPException(status_code=404, detail="Field not found")
+    now = datetime.utcnow()
+    end = end or now
+    start = start or (now - timedelta(days=7))
     return crud.get_weather_readings(db, field_id, start, end, limit)
 
 # --- Sensor Management Endpoints (Protected) ---
