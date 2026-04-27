@@ -124,6 +124,10 @@ SEEDLING_MOISTURE_THRESHOLDS = {
     "sorghum": 25.0,    # Higher than normal 20
 }
 
+def _why(category: str, icon: str, severity: str, title: str, detail: str = "") -> dict:
+    """Build a structured why-list item."""
+    return {"category": category, "icon": icon, "severity": severity, "title": title, "detail": detail}
+
 def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_forecast: Optional[List[float]] = None, ai_history: Optional[List[float]] = None) -> schemas.RecommendationResponse:
     why_list = []
     data_completeness = 0.6
@@ -134,12 +138,12 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
         data_completeness += 0.1
     else:
         data_completeness -= 0.2
-        why_list.append("⚠️ Missing sensor readings (critical data).")
+        why_list.append(_why("info", "sensors_off", "warning", "Missing Sensor Data", "No soil sensor readings available — recommendations may be less accurate."))
         
     if snapshot.weather:
         data_completeness += 0.1
     else:
-        why_list.append("⚠️ Missing weather data (past 24h).")
+        why_list.append(_why("weather", "cloud_off", "warning", "Missing Weather Data", "No weather data from the past 24 hours."))
         
     if snapshot.images:
         data_completeness += 0.1
@@ -179,10 +183,10 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
                 if detected_crop_norm in _CROP_NAME_MAP.values():
                     crop_mismatch = True
                     risk_alert = f"Image mismatch: Photo appears to be {detected_crop}, but field is registered as {snapshot.crop}."
-                    why_list.append(f"⚠️ Crop mismatch: Image shows {detected_crop}, field is {snapshot.crop}. Disease diagnosis may be inaccurate — please upload a photo of the correct crop.")
+                    why_list.append(_why("image", "photo_camera", "danger", "Crop Mismatch", f"Photo appears to be {detected_crop}, but field is registered as {snapshot.crop}."))
                     # Still report what was found, but flag it
                     if img_result["detected_issue"]:
-                        why_list.append(f"📸 Visual AI detected on {detected_crop} (not {snapshot.crop}): {img_result['detected_issue']}")
+                        why_list.append(_why("image", "photo_camera", "warning", f"Issue on {detected_crop}", f"Visual AI detected: {img_result['detected_issue']}"))
                     data_completeness = round(max(0.0, data_completeness - 0.1), 2)
 
         if not crop_mismatch:
@@ -190,16 +194,17 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
                 image_issue = img_result["detected_issue"]
                 image_treatment = img_result.get("treatment")
 
-                why_list.append(f"📸 Visual AI detected: {image_issue}")
+                sev = "danger" if img_result["severity"] in ("high", "critical") else "warning"
+                why_list.append(_why("image", "photo_camera", sev, "Disease/Pest Detected", image_issue))
 
                 if img_result["severity"] == "high" or img_result["severity"] == "critical":
                     risk_alert = f"Visual Alert: {image_issue} detected. Action required."
             elif img_result.get("detected_crop"):
                 # AI confirmed it's a plant and found no issues
-                why_list.append("📸 Visual AI check: Plant looks healthy")
+                why_list.append(_why("image", "photo_camera", "success", "Plant Looks Healthy", "Visual AI found no issues in the uploaded photo."))
             else:
                 # AI could not identify any crop/plant in the image
-                why_list.append("📸 Visual AI: Could not identify a crop in this image. Please upload a clear photo of the plant/leaves.")
+                why_list.append(_why("image", "photo_camera", "info", "Image Unclear", "Could not identify a crop. Upload a clear photo of the plant/leaves."))
 
     # 2. Irrigation Logic
     irrigation_action = "UNKNOWN"
@@ -207,7 +212,7 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
     irr_timing = "unknown"
 
     if not snapshot.sensor_readings:
-        why_list.append("Cannot determine irrigation need without soil moisture.")
+        why_list.append(_why("irrigation", "water_drop", "warning", "Irrigation Data Missing", "Cannot determine irrigation need without soil moisture."))
     else:
         moisture = snapshot.sensor_readings.moisture
         # Seedlings are more sensitive to water stress — use higher threshold
@@ -236,7 +241,7 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
                 if pt_ts <= limit_ts:
                     rainfall_next_24h += pt.rainfall_mm
         else:
-            why_list.append("No weather forecast available; assuming 0 rain.")
+            why_list.append(_why("weather", "cloud", "info", "No Forecast Available", "No weather forecast data; assuming 0 rain."))
 
         if moisture < thresh:
             # --- HYBRID DECISION LOGIC ---
@@ -266,25 +271,25 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
                 irrigation_action = "DELAY"
                 irr_timing = "after rain"
                 source = "API" if rainfall_next_24h > 2.0 else "AI Model"
-                why_list.append(f"Rain predicted by {source} - save water")
+                why_list.append(_why("irrigation", "water_drop", "info", "Rain Expected", f"Rain predicted by {source} — save water, delay irrigation."))
             
             elif storm_approaching:
                 irrigation_action = "DELAY"
                 irr_timing = "until after storm"
-                why_list.append("Storm approaching in 48h - wait")
+                why_list.append(_why("weather", "thunderstorm", "warning", "Storm Approaching", "Heavy rain predicted in 48 hours — wait before irrigating."))
             
             else:
                 # Both agree it's dry
                 irrigation_action = "IRRIGATE_NOW"
                 irr_liters = IRRIGATION_LITERS.get(crop, 400.0)
                 irr_timing = "now"
-                why_list.append("Weather is clear - safe to irrigate")
+                why_list.append(_why("irrigation", "water_drop", "success", "Clear Weather", "No rain expected — safe to irrigate now."))
 
             if risk_alert:
-                why_list.append(risk_alert)
+                why_list.append(_why("risk", "warning", "danger", "Weather Uncertainty", risk_alert))
         else:
             irrigation_action = "NO_ACTION"
-            why_list.append(f"Moisture {moisture}% is sufficient (>= {thresh}%).")
+            why_list.append(_why("irrigation", "water_drop", "success", "Soil Moisture OK", f"Moisture {moisture}% is above the {thresh}% threshold."))
 
     # 3. Scientific Fertilizer Logic (Primary: ICAR/TNAU Standards)
     fert_action = "NO_ACTION"
@@ -334,13 +339,19 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
                 # Only add nutrient deficiencies to fertilizer recommendations
                 # Moisture is handled by irrigation
                 if "Nitrogen" in deficiency_msg or "Phosphorus" in deficiency_msg or "Potassium" in deficiency_msg or "pH" in deficiency_msg:
-                    why_list.append(deficiency_msg)
+                    # Extract nutrient name for the title
+                    nutrient = "Nutrient"
+                    for n in ("Nitrogen", "Phosphorus", "Potassium", "pH"):
+                        if n in deficiency_msg:
+                            nutrient = n
+                            break
+                    why_list.append(_why("fertilizer", "compost", "warning", f"Low {nutrient}", deficiency_msg))
             
             # Add source citation (moved to end for details)
             # Add source citation
             req = adequacy["requirements"]
             sources_str = "; ".join(req["sources"][:1])
-            why_list.append(f"As per: {sources_str}")
+            why_list.append(_why("info", "info", "info", "Scientific Source", f"Based on: {sources_str}"))
             
             # ML confidence check
             ml_agrees = False
@@ -352,9 +363,9 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
                 ml_agrees = True
             
             if ml_agrees:
-                why_list.append(f"Digital check: Confirmed ({ai_analysis})")
+                why_list.append(_why("soil", "science", "success", "AI Confirms Deficiency", f"Digital model agrees: {ai_analysis}"))
             else:
-                why_list.append(f"Digital check: Suggests '{ai_analysis}' - consider retesting")
+                why_list.append(_why("soil", "science", "warning", "AI Suggests Retesting", f"Digital model says '{ai_analysis}' — consider retesting."))
             
             # Calculate fertilizer recommendations
             targets = FERTILIZER_TARGETS.get(crop, FERTILIZER_TARGETS["default"]).get(stage, FERTILIZER_TARGETS["default"]["default"])
@@ -365,7 +376,7 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
             # Seedling-specific fertilizer advice
             if stage == "seedling":
                 fert_timing = "apply basal dose at transplanting"
-                why_list.append("Seedling stage: Use starter fertilizer (high-P blend like DAP/10-26-26). Avoid heavy N — risk of seedling burn.")
+                why_list.append(_why("fertilizer", "compost", "info", "Seedling Fertilizer Advice", "Use starter fertilizer (high-P blend like DAP/10-26-26). Avoid heavy Nitrogen — risk of seedling burn."))
             # Mature/harvest stages — no fertilizer needed
             elif stage in ("mature", "harvest"):
                 fert_action = "NO_ACTION"
@@ -373,17 +384,17 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
                 p_rec = 0.0
                 k_rec = 0.0
                 fert_timing = "N/A"
-                why_list.append(f"{stage.capitalize()} stage: No fertilizer application needed. Focus on {'grain drying' if stage == 'mature' else 'soil recovery'}.")
+                why_list.append(_why("fertilizer", "compost", "success", f"{stage.capitalize()} Stage", f"No fertilizer needed. Focus on {'grain drying' if stage == 'mature' else 'soil recovery'}."))
         else:
-            why_list.append(f"Soil is healthy for {crop.capitalize()} ({stage} stage)")
-            why_list.append(f"Digital check: {ai_analysis}")
+            why_list.append(_why("soil", "science", "success", "Soil Healthy", f"Nutrients are adequate for {crop.capitalize()} ({stage} stage)."))
+            why_list.append(_why("soil", "science", "info", "AI Soil Analysis", ai_analysis))
             
             # Edge case: ML disagrees with scientific standards
             if "Low" in ai_analysis and not has_deficiency:
-                why_list.append("Note: Digital check found potential issue - consider retesting")
+                why_list.append(_why("soil", "science", "warning", "Potential Issue Detected", "Digital model found a possible nutrient issue — consider retesting soil."))
                 
     else:
-        why_list.append("Cannot determine fertilizer needs without soil test.")
+        why_list.append(_why("fertilizer", "compost", "warning", "Soil Data Missing", "Cannot determine fertilizer needs without a soil test."))
 
     # --- CROSS-VALIDATION: Image ↔ Soil Models ---
     if image_issue and snapshot.sensor_readings and not crop_mismatch and ai_analysis != "ML Model Unavailable":
@@ -391,13 +402,13 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
         # Image sees nutrient deficiency → check if soil agrees
         if "nitrogen" in issue_lower or "deficiency" in issue_lower:
             if "Low Nitrogen" in ai_analysis:
-                why_list.append("Cross-check: Soil data confirms nutrient deficiency seen in image")
+                why_list.append(_why("soil", "science", "success", "Cross-Check Confirmed", "Soil data confirms the nutrient deficiency seen in the photo."))
             else:
-                why_list.append("Cross-check: Soil data does NOT confirm deficiency seen in image — consider retesting soil")
+                why_list.append(_why("soil", "science", "warning", "Cross-Check Mismatch", "Soil data does NOT confirm the deficiency seen in the photo — consider retesting."))
 
         # Soil says healthy but image sees disease → trust image for diseases
         if ai_analysis == "Healthy" and image_issue:
-            why_list.append("Cross-check: Soil is healthy but image shows disease/pest — this is a separate issue from soil nutrients")
+            why_list.append(_why("image", "photo_camera", "warning", "Disease Detected (Not Soil)", "Soil is healthy but image shows a disease/pest — this is separate from soil nutrients."))
 
     # --- SEEDLING-SPECIFIC RISK ALERTS ---
     if stage == "seedling" and snapshot.weather:
@@ -405,16 +416,16 @@ def generate_recommendation_logic(snapshot: schemas.FieldSnapshotV1, lstm_foreca
         if temp is not None:
             if temp < 10:
                 risk_alert = risk_alert or f"Cold stress alert: {temp:.0f}°C — seedlings are highly vulnerable to frost/cold."
-                why_list.append(f"Seedling risk: Temperature {temp:.0f}°C is dangerously low. Protect with mulch or row covers.")
+                why_list.append(_why("risk", "warning", "danger", "Cold Stress Alert", f"Temperature {temp:.0f}°C — seedlings are vulnerable. Protect with mulch or row covers."))
             elif temp > 38:
                 risk_alert = risk_alert or f"Heat stress alert: {temp:.0f}°C — seedlings may wilt or die."
-                why_list.append(f"Seedling risk: Temperature {temp:.0f}°C is too high. Use shade cloth or irrigate to cool soil.")
+                why_list.append(_why("risk", "warning", "danger", "Heat Stress Alert", f"Temperature {temp:.0f}°C — seedlings may wilt. Use shade cloth or irrigate to cool soil."))
 
     # Append Image Treatment if exists
     if image_treatment and not crop_mismatch:
-        why_list.append(f"👉 Recommendation: {image_treatment}")
+        why_list.append(_why("image", "photo_camera", "info", "Treatment Recommendation", image_treatment))
     elif crop_mismatch and image_treatment:
-        why_list.append(f"👉 Note: Treatment for {img_result.get('detected_crop', 'detected crop')}: {image_treatment} (verify crop first)")
+        why_list.append(_why("image", "photo_camera", "warning", f"Treatment for {img_result.get('detected_crop', 'detected crop')}", f"{image_treatment} (verify crop first)"))
 
     # Construct response
     return schemas.RecommendationResponse(

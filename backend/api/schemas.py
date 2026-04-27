@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import List, Optional, Dict, Literal
+from typing import Any, List, Optional, Dict, Literal
 
 # --- Base Schemas ---
 
@@ -178,7 +178,7 @@ class RecommendationResponse(BaseModel):
     irrigation: IrrigationAction
     fertilizer: FertilizerAction
     data_completeness: float = Field(ge=0.0, le=1.0, description="Data availability score (0-1): how much data was available for the recommendation")
-    why: List[str]
+    why: List[Any]
     ai_analysis: Optional[str] = None # Added for ML insights
     ai_forecast: Optional[List[float]] = None # Added for LSTM Forecast Graph [day1, day2, day3]
     ai_history: Optional[List[float]] = None # Added for historical rainfall (last 7 days)
@@ -207,7 +207,7 @@ class RecommendationHistoryItem(BaseModel):
     ts: datetime
     action_json: dict
     data_completeness: float
-    why_json: List[str]
+    why_json: List[Any]
     # Snapshot omitted/optional
     class Config:
         from_attributes = True
