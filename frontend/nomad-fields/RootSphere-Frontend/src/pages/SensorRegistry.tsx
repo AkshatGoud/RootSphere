@@ -1,19 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { sensorsApi } from "@/lib/api";
-import { storage } from "@/lib/storage";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { AppLayout } from "@/components/AppLayout";
 import type { Sensor } from "@/types/api";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ThemeToggle } from "@/components/ThemeToggle";
-
-const LANG_OPTIONS = [
-  { code: 'en' as const, label: '🇺🇸 English' },
-  { code: 'hi' as const, label: '🇮🇳 हिंदी' },
-  { code: 'te' as const, label: '🇮🇳 తెలుగు' },
-  { code: 'ta' as const, label: '🇮🇳 தமிழ்' },
-];
 
 const SENSOR_TYPE_ICONS: Record<string, { icon: string; bg: string; text: string }> = {
   soil: { icon: 'compost', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-600 dark:text-amber-400' },
@@ -45,8 +36,7 @@ export default function SensorRegistry() {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const farmerName = localStorage.getItem("farmer_name") || "Farmer";
-  const { language, setLanguage, t } = useLanguage();
+  const { t } = useLanguage();
 
   useEffect(() => {
     loadSensors();
@@ -63,13 +53,6 @@ export default function SensorRegistry() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleLogout = () => {
-    storage.clearAll();
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("farmer_name");
-    navigate("/");
   };
 
   const batteryLevels = useMemo(() => {
@@ -119,74 +102,7 @@ export default function SensorRegistry() {
   ];
 
   return (
-    <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col overflow-x-hidden pb-16 md:pb-0">
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark px-6 py-3 shadow-sm">
-        <div className="flex items-center gap-4 cursor-pointer" onClick={() => navigate('/dashboard')}>
-          <div className="size-8 text-primary flex items-center justify-center">
-            <span className="material-symbols-outlined !text-[32px]">spa</span>
-          </div>
-          <h2 className="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">
-            RootSphere AI
-          </h2>
-        </div>
-        {/* Nav Links */}
-        <nav className="hidden md:flex items-center gap-1 ml-6">
-          <button onClick={() => navigate('/dashboard')} className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-primary transition-colors flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[20px]">dashboard</span>
-            {t('Dashboard')}
-          </button>
-          <button onClick={() => navigate('/fields')} className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-primary transition-colors flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[20px]">spa</span>
-            {t('Fields')}
-          </button>
-          <button onClick={() => navigate('/sensors')} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-primary transition-colors flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[20px]">sensors</span>
-            {t('Sensors')}
-          </button>
-        </nav>
-        <div className="hidden md:flex flex-1 items-center justify-end gap-6">
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            {/* Language Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1 outline-none">
-                  <span className="material-symbols-outlined">translate</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
-                {LANG_OPTIONS.map(opt => (
-                  <DropdownMenuItem
-                    key={opt.code}
-                    onClick={() => setLanguage(opt.code)}
-                    className={`cursor-pointer ${language === opt.code ? 'text-primary font-bold bg-slate-50 dark:bg-slate-700/50' : 'text-slate-700 dark:text-slate-300'
-                      }`}
-                  >
-                    {opt.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <button
-              onClick={handleLogout}
-              className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <span className="material-symbols-outlined">logout</span>
-            </button>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
-            <Link to="/profile" className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-              <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
-                {(farmerName && farmerName.length > 0) ? farmerName.charAt(0).toUpperCase() : "F"}
-              </div>
-              <span className="text-sm font-medium hidden xl:block text-slate-800 dark:text-white">
-                {farmerName}
-              </span>
-            </Link>
-          </div>
-        </div>
-      </header>
-
+    <AppLayout>
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {isLoading ? (
           /* Skeleton Loading */
@@ -587,29 +503,13 @@ export default function SensorRegistry() {
 
       {/* Footer */}
       <footer className="hidden md:flex items-center justify-between px-8 py-4 border-t border-slate-200 dark:border-slate-800 mt-auto">
-        <span className="text-xs text-slate-400">© 2026 RootSphere AI. All rights reserved.</span>
+        <span className="text-xs text-slate-400">© {new Date().getFullYear()} RootSphere AI. All rights reserved.</span>
         <div className="flex items-center gap-6 text-xs text-slate-400">
           <a href="#" className="hover:text-slate-600 transition-colors">{t("Privacy Policy")}</a>
           <a href="#" className="hover:text-slate-600 transition-colors">{t("Terms of Service")}</a>
           <a href="#" className="hover:text-slate-600 transition-colors">{t("Support")}</a>
         </div>
       </footer>
-
-      {/* Mobile Bottom Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-surface-dark border-t border-slate-200 dark:border-slate-800 h-16 flex items-center justify-around px-4 z-50">
-        <button onClick={() => navigate('/dashboard')} className="flex flex-col items-center justify-center gap-1 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
-          <span className="material-symbols-outlined text-[22px]">dashboard</span>
-          <span className="text-xs font-medium">{t('Dashboard')}</span>
-        </button>
-        <button onClick={() => navigate('/fields')} className="flex flex-col items-center justify-center gap-1 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
-          <span className="material-symbols-outlined text-[22px]">spa</span>
-          <span className="text-xs font-medium">{t('Fields')}</span>
-        </button>
-        <button onClick={() => navigate('/sensors')} className="flex flex-col items-center justify-center gap-1 text-primary transition-colors">
-          <span className="material-symbols-outlined text-[22px]">sensors</span>
-          <span className="text-xs font-medium">{t('Sensors')}</span>
-        </button>
-      </div>
-    </div>
+    </AppLayout>
   );
 }
